@@ -21,12 +21,12 @@ const environments = {
     
     // Banco de dados
     database: {
-      host: 'localhost',
-      port: 5432,
-      name: 'saas-buyandhold',
-      username: 'postgres',
-      user: 'postgres',
-      password: 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      name: process.env.DB_NAME || 'saas-buyandhold',
+      username: process.env.DB_USER || 'postgres',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
       dialect: 'postgres',
       ssl: false,
       pool: {

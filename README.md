@@ -476,6 +476,217 @@ npm --version
 ./start-app.bat
 ```
 
+## 🐳 Docker - Configuração e Uso
+
+### Pré-requisitos
+- Docker Desktop instalado
+- Docker Compose v2.0+
+- Git para clonar o repositório
+
+### Estrutura Docker
+```
+saas-buyandhold/
+├── docker-compose.yml          # Orquestração dos serviços
+├── .env.docker                 # Variáveis de ambiente (template)
+├── saas-buyandhold-backend/
+│   ├── Dockerfile             # Imagem do backend Node.js
+│   ├── .dockerignore          # Arquivos ignorados no build
+│   └── init-db.sql           # Script de inicialização do DB
+└── saas-buyandhold-frontend/
+    ├── Dockerfile             # Imagem do frontend React
+    ├── .dockerignore          # Arquivos ignorados no build
+    └── nginx.conf            # Configuração do Nginx
+```
+
+### 🚀 Comandos para Desenvolvimento
+
+#### 1. Configuração Inicial
+```bash
+# Clonar o repositório
+git clone <url-do-repositorio>
+cd saas-buyandhold
+
+# Copiar e configurar variáveis de ambiente
+cp .env.docker .env
+# Edite o arquivo .env com suas configurações
+```
+
+#### 2. Executar em Desenvolvimento
+```bash
+# Construir e iniciar todos os serviços
+docker-compose up --build
+
+# Ou executar em background
+docker-compose up -d --build
+
+# Ver logs em tempo real
+docker-compose logs -f
+
+# Ver logs de um serviço específico
+docker-compose logs -f backend
+docker-compose logs -f frontend
+```
+
+#### 3. Comandos Úteis de Desenvolvimento
+```bash
+# Parar todos os serviços
+docker-compose down
+
+# Parar e remover volumes (CUIDADO: apaga dados do banco)
+docker-compose down -v
+
+# Reconstruir apenas um serviço
+docker-compose build backend
+docker-compose up -d backend
+
+# Executar comandos no container do backend
+docker-compose exec backend npm run migrate
+docker-compose exec backend npm run seed
+
+# Acessar shell do container
+docker-compose exec backend sh
+docker-compose exec postgres psql -U postgres -d saas_buyandhold
+```
+
+### 🏭 Comandos para Produção
+
+#### 1. Build Otimizado para Produção
+```bash
+# Definir ambiente de produção
+export NODE_ENV=production
+
+# Build das imagens otimizadas
+docker-compose -f docker-compose.yml build --no-cache
+
+# Executar em produção
+docker-compose -f docker-compose.yml up -d
+```
+
+#### 2. Monitoramento em Produção
+```bash
+# Verificar status dos containers
+docker-compose ps
+
+# Verificar uso de recursos
+docker stats
+
+# Backup do banco de dados
+docker-compose exec postgres pg_dump -U postgres saas_buyandhold > backup.sql
+
+# Restaurar backup
+docker-compose exec -T postgres psql -U postgres saas_buyandhold < backup.sql
+```
+
+### 🌐 URLs de Acesso
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+- **Banco PostgreSQL**: localhost:5432
+- **Health Check Backend**: http://localhost:5000/health
+- **Health Check Frontend**: http://localhost:3000/health
+
+### 🔧 Configurações Importantes
+
+#### Variáveis de Ambiente (.env)
+```env
+# Configurações Gerais
+NODE_ENV=development
+PORT_BACKEND=5000
+PORT_FRONTEND=3000
+
+# PostgreSQL
+POSTGRES_DB=saas_buyandhold
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=sua_senha_segura
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+
+# URLs dos Serviços
+REACT_APP_API_URL=http://localhost:5000
+FRONTEND_URL=http://localhost:3000
+
+# Segurança
+JWT_SECRET=seu_jwt_secret_muito_seguro
+JWT_EXPIRES_IN=7d
+```
+
+### 🛠️ Troubleshooting
+
+#### Problemas Comuns
+
+**1. Porta já em uso**
+```bash
+# Verificar processos usando a porta
+netstat -tulpn | grep :3000
+
+# Matar processo específico
+kill -9 <PID>
+```
+
+**2. Erro de conexão com banco**
+```bash
+# Verificar se o PostgreSQL está rodando
+docker-compose ps postgres
+
+# Reiniciar apenas o banco
+docker-compose restart postgres
+
+# Verificar logs do banco
+docker-compose logs postgres
+```
+
+**3. Problemas de build**
+```bash
+# Limpar cache do Docker
+docker system prune -a
+
+# Rebuild completo sem cache
+docker-compose build --no-cache
+
+# Remover volumes órfãos
+docker volume prune
+```
+
+**4. Problemas de permissão (Linux/Mac)**
+```bash
+# Ajustar permissões dos arquivos
+sudo chown -R $USER:$USER .
+
+# Executar Docker sem sudo (adicionar usuário ao grupo)
+sudo usermod -aG docker $USER
+```
+
+### 📊 Monitoramento e Logs
+
+```bash
+# Logs detalhados com timestamp
+docker-compose logs -f --timestamps
+
+# Logs apenas de erros
+docker-compose logs --tail=50 | grep ERROR
+
+# Monitorar recursos em tempo real
+docker-compose top
+
+# Verificar saúde dos containers
+docker-compose exec backend curl http://localhost:5000/health
+docker-compose exec frontend curl http://localhost/health
+```
+
+### 🔒 Segurança
+
+- Containers executam com usuário não-root
+- Variáveis sensíveis em arquivos `.env` (não versionados)
+- Rede isolada entre containers
+- Health checks configurados
+- Logs estruturados para auditoria
+
+> ⚠️ **Importante**: 
+> - Nunca commite arquivos `.env` com dados reais
+> - Use senhas fortes em produção
+> - Configure SSL/TLS em produção
+> - Faça backups regulares do banco de dados
+
 ## 📁 Controle de Versão e .gitignore
 
 O projeto possui um arquivo `.gitignore` otimizado que ignora automaticamente:

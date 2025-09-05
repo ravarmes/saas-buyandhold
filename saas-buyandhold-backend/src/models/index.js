@@ -6,6 +6,8 @@ const { database } = require('../../config/environment');
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Configuração do banco de dados
+const dialectOptions = database.ssl ? { ssl: { require: true, rejectUnauthorized: false } } : {};
+
 const sequelize = new Sequelize(
   database.name,
   database.username,
@@ -14,9 +16,7 @@ const sequelize = new Sequelize(
     host: database.host,
     port: database.port,
     dialect: database.dialect,
-    dialectOptions: {
-      ssl: database.ssl
-    },
+    dialectOptions,
     pool: database.pool,
     timezone: database.timezone,
     logging: isDevelopment ? console.log : false,

@@ -118,3 +118,16 @@ Desktop.ini
 # Arquivos de configuração específicos do projeto
 config/local.js
 config/production.local.js
+
+# Docker
+.env.docker
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+
+# Volumes do Docker
+**/postgres_data/
+**/backend_logs/
+
+# Arquivos de build do Docker
+**/.dockerignore.bak

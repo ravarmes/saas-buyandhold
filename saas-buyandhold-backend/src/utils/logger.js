@@ -15,16 +15,7 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'saas-buyandhold' },
-  transports: [
-    // Arquivo para todos os logs
-    new winston.transports.File({ 
-      filename: logs.file, 
-      level: 'error' 
-    }),
-    new winston.transports.File({ 
-      filename: logs.file 
-    })
-  ]
+  transports: []
 });
 
 // Se não estiver em produção, adicionar logs no console
