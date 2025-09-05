@@ -511,7 +511,24 @@ cp .env.docker .env
 # Edite o arquivo .env com suas configurações
 ```
 
-#### 2. Executar em Desenvolvimento
+#### 2. Scripts Automatizados (Windows)
+Para facilitar o uso no Windows, foram criados scripts batch:
+
+```cmd
+# Iniciar aplicação completa (build + start)
+docker-start.bat
+
+# Parar todos os containers
+docker-stop.bat
+
+# Visualizar logs
+docker-logs.bat                # Todos os logs
+docker-logs.bat frontend       # Logs do frontend
+docker-logs.bat backend        # Logs do backend
+docker-logs.bat database       # Logs do database
+```
+
+#### 3. Executar em Desenvolvimento (Manual)
 ```bash
 # Construir e iniciar todos os serviços
 docker-compose up --build
@@ -527,7 +544,7 @@ docker-compose logs -f backend
 docker-compose logs -f frontend
 ```
 
-#### 3. Comandos Úteis de Desenvolvimento
+#### 4. Comandos Úteis de Desenvolvimento
 ```bash
 # Parar todos os serviços
 docker-compose down
