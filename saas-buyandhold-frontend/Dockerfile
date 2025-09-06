@@ -1,5 +1,5 @@
 # ================================
-# Dockerfile para Frontend React
+# Dockerfile Otimizado - Frontend React
 # SaaS Buy & Hold - Interface Web
 # ================================
 
@@ -8,64 +8,70 @@
 # ================================
 FROM node:18-alpine AS builder
 
+# Definir variáveis de ambiente para build
+ENV NODE_ENV=production
+ENV GENERATE_SOURCEMAP=false
+ENV NPM_CONFIG_CACHE=/tmp/.npm
+
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar arquivos de dependências primeiro (para cache do Docker)
 COPY package*.json ./
 
-# Instalar dependências
-    RUN npm install --silent
+# Instalar dependências otimizado
+RUN npm install --production --no-audit --no-fund && \
+    npm cache clean --force
 
 # Copiar código fonte
 COPY . .
 
-# Definir variáveis de ambiente para build
-ARG REACT_APP_API_URL=http://localhost:5000/api
-ARG REACT_APP_DOMAIN=localhost
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
-ENV REACT_APP_DOMAIN=$REACT_APP_DOMAIN
-ENV NODE_ENV=production
-ENV GENERATE_SOURCEMAP=false
+# Build stage
+FROM node:18-alpine AS build
 
-# Build da aplicação
+ENV NODE_ENV=production \
+    GENERATE_SOURCEMAP=false \
+    NPM_CONFIG_PRODUCTION=false
+
+# Argumentos de build para variáveis do CRA
+ARG REACT_APP_API_URL=/api
+ARG REACT_APP_DOMAIN=localhost
+ARG REACT_APP_PROFILE=production
+ARG REACT_APP_EMAILJS_SERVICE_ID
+ARG REACT_APP_EMAILJS_TEMPLATE_ID
+ARG REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID
+ARG REACT_APP_EMAILJS_PUBLIC_KEY
+
+# Exporta os argumentos como variáveis de ambiente para o build do CRA
+ENV REACT_APP_API_URL=$REACT_APP_API_URL \
+    REACT_APP_DOMAIN=$REACT_APP_DOMAIN \
+    REACT_APP_PROFILE=$REACT_APP_PROFILE \
+    REACT_APP_EMAILJS_SERVICE_ID=$REACT_APP_EMAILJS_SERVICE_ID \
+    REACT_APP_EMAILJS_TEMPLATE_ID=$REACT_APP_EMAILJS_TEMPLATE_ID \
+    REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID=$REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID \
+    REACT_APP_EMAILJS_PUBLIC_KEY=$REACT_APP_EMAILJS_PUBLIC_KEY
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --legacy-peer-deps --no-audit --no-fund
+
+COPY . .
+
 RUN npm run build
 
-# ================================
-# Stage 2: Servidor Nginx
-# ================================
-FROM nginx:alpine AS runner
+# Runtime stage (Nginx)
+FROM nginx:1.25-alpine AS runtime
 
-# Instalar curl para health checks
-RUN apk add --no-cache curl
+# Copia build do React para o Nginx
+COPY --from=build /app/build /usr/share/nginx/html
 
-# Remover configuração padrão do nginx
-RUN rm /etc/nginx/conf.d/default.conf
-
-# Copiar configuração customizada do nginx
+# Copia configuração customizada do Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copiar arquivos buildados do React
-COPY --from=builder /app/build /usr/share/nginx/html
-
-# Criar usuário não-root
-RUN addgroup -g 1001 -S nginx-user
-RUN adduser -S frontend -u 1001 -G nginx-user
-
-# Ajustar permissões
-RUN chown -R frontend:nginx-user /usr/share/nginx/html
-RUN chown -R frontend:nginx-user /var/cache/nginx
-RUN chown -R frontend:nginx-user /var/log/nginx
-RUN chown -R frontend:nginx-user /etc/nginx/conf.d
-RUN touch /var/run/nginx.pid
-RUN chown -R frontend:nginx-user /var/run/nginx.pid
-
-# Expor porta
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
+# Healthcheck básico
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD wget -qO- http://localhost/ || exit 1
 
-# Iniciar nginx
 CMD ["nginx", "-g", "daemon off;"]

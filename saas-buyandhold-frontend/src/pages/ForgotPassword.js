@@ -18,7 +18,7 @@ const ForgotPassword = () => {
 
     try {
       // Chama o backend para gerar o token
-      const response = await axios.post('/api/auth/forgot-password', { email });
+      const response = await axios.post('/auth/forgot-password', { email });
       
       if (response.data && response.data.emailData) {
         // Usar EmailService para enviar o email via EmailJS

@@ -43,7 +43,9 @@
   "devDependencies": {
     "autoprefixer": "^10.4.14",
     "postcss": "^8.4.21",
-    "tailwindcss": "^3.3.1"
+    "tailwindcss": "^3.3.1",
+    "ajv": "^6.12.6",
+    "ajv-keywords": "^3.5.2"
   },
   "proxy": "http://localhost:5000"
 }

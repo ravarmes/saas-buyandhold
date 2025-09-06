@@ -1,31 +1,40 @@
 // Configuração centralizada de ambiente
 // Detecta automaticamente se é TESTE (development) ou PRODUÇÃO (production)
 
+const getRuntimeOrigin = () => {
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    return window.location.origin;
+  }
+  return process.env.REACT_APP_APP_URL || 'http://localhost:3000';
+};
+
+const runtimeProfile = process.env.REACT_APP_PROFILE || process.env.NODE_ENV || 'development';
+const isDevFlag = runtimeProfile === 'development';
+const isProdFlag = runtimeProfile === 'production';
+
+const apiBaseURL = process.env.REACT_APP_API_URL || '/api';
+
 const environment = {
   // Detecta o ambiente atual
-  isDevelopment: process.env.NODE_ENV === 'development',
-  isProduction: process.env.NODE_ENV === 'production',
+  isDevelopment: isDevFlag,
+  isProduction: isProdFlag,
   
   // Configurações baseadas no ambiente
   api: {
-    baseURL: process.env.NODE_ENV === 'production' 
-      ? 'https://buyandhold.vargascode.com.br/api'
-      : 'http://localhost:5000',
+    // Usa variável REACT_APP_API_URL, se existir; caso contrário, usa caminho relativo '/api'
+    baseURL: apiBaseURL,
   },
   
   app: {
-    domain: process.env.NODE_ENV === 'production'
-      ? 'https://buyandhold.vargascode.com.br'
-      : 'http://localhost:3000',
+    // Usa a origem em tempo de execução para evitar hardcode de domínio
+    domain: getRuntimeOrigin(),
     name: 'Buy & Hold',
     version: '1.0.0'
   },
   
   // URLs para meta tags e SEO
   seo: {
-    url: process.env.NODE_ENV === 'production'
-      ? 'https://buyandhold.vargascode.com.br/'
-      : 'http://localhost:3000/',
+    url: `${getRuntimeOrigin()}/`,
     title: 'SaaS Buy & Hold - Calculadora de Investimentos',
     description: 'Otimize sua carteira de investimentos com sugestões inteligentes'
   },
@@ -51,15 +60,15 @@ const environment = {
   
   // Configurações de debug e logging
   debug: {
-    enabled: process.env.NODE_ENV === 'development',
-    logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'error'
+    enabled: isDevFlag,
+    logLevel: isDevFlag ? 'debug' : 'error'
   },
   
   // Configurações de features (pode ser útil para A/B testing)
   features: {
     showAds: true,
-    enableAnalytics: process.env.NODE_ENV === 'production',
-    enableHotReload: process.env.NODE_ENV === 'development'
+    enableAnalytics: isProdFlag,
+    enableHotReload: isDevFlag
   }
 };
 
@@ -90,7 +99,7 @@ export const { api, app, seo, services, debug, features } = environment;
 
 // Log do ambiente atual (apenas em desenvolvimento)
 if (environment.debug.enabled) {
-  console.log('🔧 Ambiente detectado:', process.env.NODE_ENV);
+  console.log('🔧 Ambiente detectado:', runtimeProfile);
   console.log('🌐 API URL:', environment.api.baseURL);
   console.log('🏠 App URL:', environment.app.domain);
 }

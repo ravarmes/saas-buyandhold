@@ -4,9 +4,17 @@ REM Script para iniciar aplicação Docker
 REM SaaS Buy & Hold
 REM ================================
 
-echo ================================
-echo  SaaS Buy & Hold - Docker Setup
-echo ================================
+echo ========================================
+echo  SAAS BUY & HOLD - DOCKER STARTUP
+echo ========================================
+echo.
+echo [INFO] Iniciando aplicacao SaaS Buy & Hold...
+echo [INFO] Aguarde enquanto os containers sao construidos e iniciados.
+echo.
+
+REM Verificar uso de disco antes de iniciar
+echo [INFO] Verificando uso de disco Docker...
+docker system df 2>nul
 echo.
 
 REM Verificar se Docker está instalado
@@ -44,8 +52,11 @@ echo [INFO] Parando containers existentes...
 docker-compose down
 echo.
 
-echo [INFO] Construindo e iniciando containers...
-docker-compose up --build -d
+REM Executar docker-compose com otimizações
+echo [INFO] Construindo e iniciando containers (modo otimizado)...
+set DOCKER_BUILDKIT=1
+set COMPOSE_DOCKER_CLI_BUILD=1
+docker-compose up --build -d --remove-orphans
 echo.
 
 echo [INFO] Aguardando serviços ficarem prontos...
@@ -56,15 +67,22 @@ echo [INFO] Status dos containers:
 docker-compose ps
 echo.
 
-echo ================================
-echo  Aplicação iniciada com sucesso!
-echo ================================
+echo ========================================
+echo  APLICACAO INICIADA COM SUCESSO!
+echo ========================================
 echo.
-echo Frontend: http://localhost:3000
-echo Backend:  http://localhost:5000
-echo Database: localhost:5432
+echo URLs de acesso:
+echo   Frontend: http://localhost:3000
+echo   Backend:  http://localhost:5000
+echo   API Docs: http://localhost:5000/api-docs
 echo.
-echo Para ver os logs: docker-compose logs -f
-echo Para parar: docker-compose down
+echo Comandos uteis:
+echo   Parar:          docker-compose down
+echo   Ver logs:       docker-compose logs -f
+echo   Limpar disco:   docker-cleanup.bat
+echo   Monitorar:      docker-logs.bat
+echo.
+echo [INFO] Uso de disco atual:
+docker system df 2>nul
 echo.
 pause

@@ -28,7 +28,7 @@ const CreditCardForm = ({ onPaymentSuccess, onError, amount = 0.05 }) => {
 
       try {
         // Obter configurações do Mercado Pago do backend
-        const configResponse = await axios.get(getApiUrl('/api/payments/mercadopago-config'));
+        const configResponse = await axios.get('/payments/mercadopago-config');
         const { publicKey, isTestEnvironment, environment } = configResponse.data;
         
         // Definir se está em ambiente de teste
@@ -201,7 +201,7 @@ const CreditCardForm = ({ onPaymentSuccess, onError, amount = 0.05 }) => {
       // Enviar pagamento para o backend
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        getApiUrl('/api/payments/create-credit-card'),
+        '/payments/create-credit-card',
         {
           cardData: {
             token: cardToken.id,

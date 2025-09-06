@@ -4,9 +4,10 @@
  * e carrega as configurações apropriadas
  */
 
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
-const isTest = process.env.NODE_ENV === 'test';
+const runtimeEnv = process.env.APP_ENV || process.env.NODE_ENV || 'development';
+const isDevelopment = runtimeEnv === 'development';
+const isProduction = runtimeEnv === 'production';
+const isTest = runtimeEnv === 'test';
 
 // Configurações base para cada ambiente
 const environments = {
@@ -113,7 +114,7 @@ const environments = {
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       dialect: 'postgres',
-      ssl: true,
+      ssl: process.env.DB_SSL === 'false' ? false : true,
       pool: {
         max: 10,
         min: 0,
@@ -275,6 +276,13 @@ const currentEnvironment = isProduction ? 'production' :
 
 // Configuração ativa
 const config = environments[currentEnvironment];
+
+// Enriquecer CORS com FRONTEND_URL, se definido
+if (process.env.FRONTEND_URL) {
+  const origins = new Set([...(config.corsOrigins || [])]);
+  origins.add(process.env.FRONTEND_URL);
+  config.corsOrigins = Array.from(origins);
+}
 
 // Funções auxiliares
 const debugLog = (...args) => {

@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import CreditCardForm from '../components/CreditCardForm';
-import { getApiUrl } from '../config/environment';
 
 const Upgrade = () => {
   const { user, refreshUser } = useAuth();
@@ -31,11 +30,10 @@ const Upgrade = () => {
   useEffect(() => {
     const checkEnvironment = async () => {
       try {
-        const response = await axios.get(getApiUrl('/api/payments/mercadopago-config'));
+        const response = await axios.get('/payments/mercadopago-config');
         setIsTestEnvironment(response.data.isTestEnvironment);
       } catch (error) {
         console.error('Erro ao verificar ambiente:', error);
-        // Em caso de erro, assumir produção por segurança
         setIsTestEnvironment(false);
       }
     };
@@ -48,7 +46,7 @@ const Upgrade = () => {
     const fetchSubscription = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(getApiUrl('/api/payments/subscription'), {
+        const response = await axios.get('/payments/subscription', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setSubscription(response.data.subscription);
@@ -78,8 +76,8 @@ const Upgrade = () => {
       
       // Usar a nova API do Mercado Pago para PIX
       const endpoint = selectedPaymentMethod === 'pix' 
-        ? getApiUrl('/api/payments/create-mercadopago')
-                : getApiUrl('/api/payments/create');
+        ? '/payments/create-mercadopago'
+                : '/payments/create';
       
       const response = await axios.post(
         endpoint,
@@ -138,7 +136,7 @@ const Upgrade = () => {
         : paymentData.paymentId;
       
       const response = await axios.post(
-        getApiUrl('/api/payments/simulate-payment'),
+        '/payments/simulate-payment',
         { paymentId },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -203,8 +201,8 @@ const Upgrade = () => {
       
       // Usar a nova API do Mercado Pago se for pagamento PIX com Mercado Pago
       const endpoint = paymentData.mercadoPagoPayment 
-        ? getApiUrl('/api/payments/verify-mercadopago')
-                : getApiUrl('/api/payments/verify-pix');
+        ? '/payments/verify-mercadopago'
+                : '/payments/verify-pix';
       
       const requestData = paymentData.mercadoPagoPayment 
         ? {
@@ -283,7 +281,7 @@ const Upgrade = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        getApiUrl('/api/payments/confirm'),
+        '/payments/confirm',
         {
           subscriptionId: paymentData.id,
           paymentId: paymentData.paymentId
