@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getApiUrl, services } from '../config/environment';
 
-const CreditCardForm = ({ onPaymentSuccess, onError, amount = 0.05 }) => {
+const CreditCardForm = ({ onPaymentSuccess, onError, amount = 15.00 }) => {
   const [cardData, setCardData] = useState({
     cardNumber: '',
     expiryMonth: '',

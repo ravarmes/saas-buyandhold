@@ -83,7 +83,7 @@ const Upgrade = () => {
         endpoint,
         {
           paymentMethod: selectedPaymentMethod,
-          amount: 0.05
+          amount: 15.00
         },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -348,7 +348,7 @@ const Upgrade = () => {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Plano Premium</h2>
             <div className="text-4xl font-bold text-blue-600 mb-4">
-              R$ 0,05
+              R$ 15,00
               <span className="text-lg font-normal text-gray-500">/mês</span>
             </div>
           </div>
@@ -399,90 +399,56 @@ const Upgrade = () => {
             </div>
           </div>
 
-          {/* Métodos de Pagamento */}
+          {/* Método de Pagamento - Apenas PIX */}
           <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Escolha o método de pagamento:</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setSelectedPaymentMethod('pix')}
-                className={`p-4 border-2 rounded-lg transition-colors ${
-                  selectedPaymentMethod === 'pix'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-center mb-2">
-                  <svg className="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <svg className="w-6 h-6 text-green-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <div>
+                  <h3 className="font-semibold text-green-800">Pagamento via PIX</h3>
+                  <p className="text-sm text-green-700">Pagamento instantâneo e seguro</p>
                 </div>
-                <div className="font-medium text-gray-900">PIX</div>
-                <div className="text-sm text-gray-500">Pagamento instantâneo</div>
-              </button>
-              
-              <button
-                onClick={() => setSelectedPaymentMethod('credit_card')}
-                className={`p-4 border-2 rounded-lg transition-colors ${
-                  selectedPaymentMethod === 'credit_card'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-center mb-2">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                </div>
-                <div className="font-medium text-gray-900">Cartão de Crédito</div>
-                <div className="text-sm text-gray-500">Parcelamento disponível</div>
-              </button>
+              </div>
             </div>
           </div>
 
-          {/* Formulário de Pagamento */}
-          {selectedPaymentMethod === 'credit_card' ? (
-            <CreditCardForm
-              onPaymentSuccess={handleCreditCardSuccess}
-              onError={setError}
-              amount={0.05}
-            />
-          ) : (
-            /* Botão de Upgrade para PIX */
-            <button
+          {/* Botão de Upgrade para PIX */}
+          <button
               onClick={handleCreatePayment}
               disabled={loading}
               className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Processando...' : 'Fazer Upgrade Premium'}
             </button>
-          )}
         </div>
 
         {/* Mensagens */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-red-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <p className="text-red-700">{error}</p>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-red-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-red-700">{error}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-green-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <p className="text-green-700">{success}</p>
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-green-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-green-700">{success}</p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Modal de Pagamento */}
+        {/* Modal de Pagamento */}
       {showPaymentModal && paymentData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6">

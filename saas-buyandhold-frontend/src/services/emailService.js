@@ -74,7 +74,8 @@ class EmailService {
         from_email: formData.email,
         subject: formData.subject,
         message: formData.message,
-        to_email: 'ajuda.brugnara@gmail.com'
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
       const response = await emailjs.send(this.serviceId, this.templateId, templateParams);
@@ -115,7 +116,8 @@ class EmailService {
       const templateParams = {
         to_email: email,
         reset_link: resetLink,
-        from_name: 'SaaS Buy&Hold'
+        from_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
       const response = await emailjs.send(this.serviceId, this.passwordTemplateId, templateParams);
@@ -163,7 +165,8 @@ class EmailService {
         from_email: formData.email,
         subject: `${severityEmoji[formData.severity] || '🐞'} Bug Report - ${formData.title}`,
         message: `TIPO: ${formData.bugType}\nSEVERIDADE: ${formData.severity?.toUpperCase()}\n\nDESCRIÇÃO:\n${formData.description}\n\nPASSOS PARA REPRODUZIR:\n${formData.stepsToReproduce}\n\nCOMPORTAMENTO ESPERADO:\n${formData.expectedBehavior}\n\nCOMPORTAMENTO ATUAL:\n${formData.actualBehavior}\n\nNAVEGADOR: ${formData.browser}\nDISPOSITIVO: ${formData.device}`,
-        to_email: 'ajuda.brugnara@gmail.com'
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
       const response = await emailjs.send(this.serviceId, this.templateId, templateParams);
@@ -211,7 +214,8 @@ class EmailService {
         from_email: formData.email,
         subject: `${priorityEmoji[formData.priority] || '💡'} Sugestão de Funcionalidade - ${formData.title}`,
         message: `CATEGORIA: ${formData.category}\nPRIORIDADE: ${formData.priority?.toUpperCase()}\nUSUÁRIOS ALVO: ${formData.targetUsers}\n\nDESCRIÇÃO:\n${formData.description}\n\nCASO DE USO:\n${formData.useCase}\n\nBENEFÍCIOS:\n${formData.benefits}`,
-        to_email: 'ajuda.brugnara@gmail.com'
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
       const response = await emailjs.send(this.serviceId, this.templateId, templateParams);

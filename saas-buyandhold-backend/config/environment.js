@@ -14,11 +14,11 @@ const environments = {
   development: {
     // URLs e domínios
     frontendUrl: 'http://localhost:3000',
-    backendUrl: 'http://localhost:5001',
+    backendUrl: 'http://localhost:5000',
     domain: 'localhost',
     
     // Servidor
-    port: 5001,
+    port: 5000,
     
     // Banco de dados
     database: {
@@ -89,7 +89,7 @@ const environments = {
       user: process.env.EMAIL_USER || 'your-email@gmail.com',
       pass: process.env.EMAIL_PASS || 'your-app-password',
       from: process.env.EMAIL_FROM || 'Buy & Hold <noreply@buyandhold.com>',
-      to: process.env.EMAIL_TO || 'ajuda.brugnara@gmail.com'
+      to: process.env.EMAIL_TO || 'vargascodemail@gmail.com'
     },
 
     // Debug
@@ -176,7 +176,7 @@ const environments = {
       user: process.env.EMAIL_USER || 'your-email@gmail.com',
       pass: process.env.EMAIL_PASS || 'your-app-password',
       from: process.env.EMAIL_FROM || 'Buy & Hold <noreply@buyandhold.com>',
-      to: process.env.EMAIL_TO || 'ajuda.brugnara@gmail.com'
+      to: process.env.EMAIL_TO || 'vargascodemail@gmail.com'
     },
 
     // Debug
@@ -186,11 +186,11 @@ const environments = {
   test: {
     // URLs e domínios
     frontendUrl: 'http://localhost:3000',
-    backendUrl: 'http://localhost:5001',
+    backendUrl: 'http://localhost:5000',
     domain: 'localhost',
     
     // Servidor
-    port: 5001,
+    port: 5000,
     
     // Banco de dados
     database: {

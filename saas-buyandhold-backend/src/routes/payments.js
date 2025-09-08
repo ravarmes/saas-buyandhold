@@ -125,8 +125,11 @@ function generatePixCode({ pixKey, merchantName, merchantCity, amount, txId, use
  */
 router.post('/create', authenticate, async (req, res) => {
   try {
-    const { paymentMethod, amount = 0.05 } = req.body;
+    const { paymentMethod, amount = 15.00 } = req.body;
     const userId = req.user.userId;
+
+    const normalizedAmount = normalizeAmount(amount, 15.00);
+    logger.info('[/api/payments/create] Amount recebido e normalizado', { rawAmount: amount, normalizedAmount });
 
     // Validar método de pagamento
     if (!['pix', 'credit_card'].includes(paymentMethod)) {
@@ -153,7 +156,7 @@ router.post('/create', authenticate, async (req, res) => {
     const subscription = await Subscription.create({
       userId,
       paymentMethod,
-      amount,
+      amount: normalizedAmount,
       status: 'pending'
     });
 
@@ -176,7 +179,7 @@ router.post('/create', authenticate, async (req, res) => {
         pixKey,
         merchantName: pixName,
         merchantCity: pixCity,
-        amount: amount.toFixed(2),
+        amount: normalizedAmount.toFixed(2),
         txId: paymentId.substring(0, 25), // Máximo 25 caracteres
         userId: userId.toString()
       });
@@ -185,7 +188,7 @@ router.post('/create', authenticate, async (req, res) => {
         qrCode: pixCode,
         pixKey: pixKey,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutos
-        instructions: `Escaneie o QR Code ou use a chave PIX (${pixKey}) para efetuar o pagamento de R$ ${amount.toFixed(2)}`
+        instructions: `Escaneie o QR Code ou use a chave PIX (${pixKey}) para efetuar o pagamento de R$ ${normalizedAmount.toFixed(2)}`
       };
     } else if (paymentMethod === 'credit_card') {
       // Simular processamento de cartão de crédito
@@ -228,8 +231,11 @@ router.post('/create', authenticate, async (req, res) => {
  */
 router.post('/create-mercadopago', authenticate, async (req, res) => {
   try {
-    const { amount = 0.05 } = req.body;
+    const { amount = 15.00 } = req.body;
     const userId = req.user.userId;
+
+    const normalizedAmount = normalizeAmount(amount, 15.00);
+    logger.info('[/api/payments/create-mercadopago] Amount recebido e normalizado', { rawAmount: amount, normalizedAmount });
 
     // Buscar dados do usuário
     const user = await User.findByPk(userId);
@@ -276,7 +282,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
     if (useRealMercadoPago) {
       // Usar Mercado Pago real (produção)
       const paymentData = {
-        amount: parseFloat(amount),
+        amount: normalizedAmount,
         description: 'Upgrade para Premium - SaaS Buy & Hold',
         email: user.email,
         name: user.name || 'Cliente',
@@ -292,7 +298,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
           details: pixPayment.error
         });
       }
-      
+
       paymentId = pixPayment.paymentId;
     } else {
       // Usar PIX simulado (desenvolvimento) com códigos únicos
@@ -307,7 +313,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
         pixKey,
         merchantName: pixName,
         merchantCity: pixCity,
-        amount: parseFloat(amount).toFixed(2),
+        amount: normalizedAmount.toFixed(2),
         txId: paymentId.substring(0, 25),
         userId: userId.toString()
       });
@@ -320,7 +326,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
         qrCodeBase64: Buffer.from(pixCode).toString('base64'),
         pixCopyPaste: pixCode,
         expirationDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        amount: parseFloat(amount),
+        amount: normalizedAmount,
         description: 'Upgrade para Premium - SaaS Buy & Hold (Desenvolvimento)'
       };
     }
@@ -332,7 +338,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
       status: 'pending',
       paymentMethod: useRealMercadoPago ? 'pix_mercadopago' : 'pix_dev',
       paymentId: paymentId,
-      amount: parseFloat(amount),
+      amount: normalizedAmount,
       startDate: new Date(),
       endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 dias
     });
@@ -386,8 +392,11 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
  */
 router.post('/create-credit-card', authenticate, async (req, res) => {
   try {
-    const { cardData, installments = 1, amount = 0.05 } = req.body;
+    const { cardData, installments = 1, amount = 15.00 } = req.body;
     const userId = req.user.userId;
+
+    const normalizedAmount = normalizeAmount(amount, 15.00);
+    logger.info('[/api/payments/create-credit-card] Amount recebido e normalizado', { rawAmount: amount, normalizedAmount });
 
     // Validar dados obrigatórios
     if (!cardData || !cardData.token) {
@@ -441,7 +450,7 @@ router.post('/create-credit-card', authenticate, async (req, res) => {
 
       if (!creditCardPayment.success) {
         return res.status(400).json({
-          error: 'Erro ao processar pagamento por cartão de crédito',
+          error: 'Erro ao criar pagamento por cartão de crédito',
           details: creditCardPayment.error
         });
       }
@@ -1310,3 +1319,15 @@ router.post('/simulate-payment', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+
+// Função utilitária para normalizar valores monetários recebidos do cliente
+// Garante ponto decimal, duas casas e evita valores inválidos/negativos
+function normalizeAmount(input, defaultValue = 15.00) {
+  const raw = String(input).trim();
+  // Troca vírgula por ponto para suportar formatos pt-BR
+  const normalizedStr = raw.replace(',', '.');
+  const parsed = parseFloat(normalizedStr);
+  if (!isFinite(parsed) || parsed <= 0) return defaultValue;
+  // Arredonda para 2 casas decimais de forma estável
+  return Math.round(parsed * 100) / 100;
+}

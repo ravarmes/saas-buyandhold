@@ -25,7 +25,7 @@ const HelpCenter = () => {
     },
     {
       question: "Como cancelar minha assinatura premium?",
-      answer: "Entre em contato conosco através da página de contato ou envie um email para ajuda.brugnara@gmail.com."
+      answer: "Entre em contato conosco através da página de contato ou envie um email para vargascodemail@gmail.com."
     }
   ];
 
