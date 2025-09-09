@@ -2,6 +2,7 @@ const express = require('express');
 const { User, Subscription } = require('../models');
 const { authenticate } = require('../middleware/auth');
 const mercadoPagoService = require('../services/MercadoPagoService');
+const hotmartService = require('../services/HotmartService');
 const { payments } = require('../../config/environment');
 const logger = require('../utils/logger');
 const router = express.Router();
@@ -1312,6 +1313,291 @@ router.post('/simulate-payment', authenticate, async (req, res) => {
       error: error.message,
       stack: error.stack
     });
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/create-hotmart
+ * @desc Criar checkout na Hotmart
+ * @access Private
+ */
+router.post('/create-hotmart', authenticate, async (req, res) => {
+  try {
+    const { amount, installments } = req.body;
+    const user = req.user;
+
+    // Validar dados do usuário
+    if (!user.email || !user.name) {
+      return res.status(400).json({
+        error: 'Dados do usuário incompletos. Email e nome são obrigatórios.'
+      });
+    }
+
+    // Preparar dados do pedido
+    const orderData = {
+      userId: user.id,
+      customerName: user.name,
+      customerEmail: user.email,
+      customerPhone: user.phone || '',
+      customerDocument: user.document || '',
+      amount: amount || 9900, // R$ 99,00 em centavos
+      installments: installments || 1
+    };
+
+    logger.info('Criando checkout Hotmart', {
+      userId: user.id,
+      email: user.email,
+      amount: orderData.amount
+    });
+
+    // Criar checkout na Hotmart
+    const result = await hotmartService.createCheckout(orderData);
+
+    if (!result.success) {
+      logger.error('Erro ao criar checkout Hotmart', {
+        userId: user.id,
+        error: result.error
+      });
+      
+      return res.status(400).json({
+        error: result.error || 'Erro ao processar pagamento'
+      });
+    }
+
+    // Salvar transação no banco (opcional)
+    // TODO: Implementar salvamento da transação se necessário
+
+    logger.info('Checkout Hotmart criado com sucesso', {
+      userId: user.id,
+      transactionId: result.transactionId,
+      checkoutUrl: result.checkoutUrl
+    });
+
+    res.json({
+      success: true,
+      checkoutUrl: result.checkoutUrl,
+      transactionId: result.transactionId,
+      message: 'Checkout criado com sucesso'
+    });
+
+  } catch (error) {
+    logger.error('Erro interno ao criar checkout Hotmart', {
+      userId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/create-hotmart-link
+ * @desc Criar link de pagamento direto na Hotmart
+ * @access Private
+ */
+router.post('/create-hotmart-link', authenticate, async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const user = req.user;
+
+    // Debug: Log dos dados do usuário
+    console.error('=== DEBUG CREATE-HOTMART-LINK ===');
+    console.error('req.user:', JSON.stringify(user, null, 2));
+    console.error('user.email:', user.email);
+    console.error('user.name:', user.name);
+    console.error('hasEmail:', !!user.email);
+    console.error('hasName:', !!user.name);
+    console.error('userKeys:', Object.keys(user));
+    console.error('================================');
+
+    // Validar dados do usuário
+    if (!user.email || !user.name) {
+      console.log('VALIDAÇÃO FALHOU - dados incompletos');
+      console.log('email:', user.email);
+      console.log('name:', user.name);
+      return res.status(400).json({
+        error: 'Dados do usuário incompletos. Email e nome são obrigatórios.'
+      });
+    }
+
+    // Converter amount (em BRL) para centavos para Hotmart
+    const amountInCents = Math.round(((typeof amount === 'number' ? amount : parseFloat(amount)) || 15.00) * 100);
+
+    // Preparar dados do pedido
+    const orderData = {
+      userId: user.id,
+      customerName: user.name,
+      customerEmail: user.email,
+      amount: amountInCents // Ex.: R$ 15,00 -> 1500 centavos
+    };
+
+    logger.info('Criando link de pagamento Hotmart', {
+      userId: user.id,
+      email: user.email,
+      amount: orderData.amount
+    });
+
+    // Criar link de pagamento na Hotmart
+    const result = await hotmartService.createPaymentLink(orderData);
+
+    if (!result.success) {
+      logger.error('Erro ao criar link Hotmart', {
+        userId: user.id,
+        error: result.error
+      });
+      
+      return res.status(400).json({
+        error: result.error || 'Erro ao gerar link de pagamento'
+      });
+    }
+
+    logger.info('Link de pagamento Hotmart criado com sucesso', {
+      userId: user.id,
+      linkId: result.linkId,
+      hasPaymentUrl: !!result.paymentUrl
+    });
+
+    res.json({
+      success: true,
+      paymentUrl: result.paymentUrl ?? null,
+      linkId: result.linkId ?? null,
+      data: result.data ?? null,
+      message: 'Link de pagamento criado com sucesso'
+    });
+
+  } catch (error) {
+    logger.error('Erro interno ao criar link Hotmart', {
+      userId: req.user?.id,
+      error: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/hotmart/webhook
+ * @desc Webhook da Hotmart para processar eventos de pagamento
+ * @access Public
+ */
+router.post('/hotmart/webhook', async (req, res) => {
+  try {
+    const signature = req.headers['x-hotmart-signature'];
+    const payload = req.body;
+
+    logger.info('Webhook Hotmart recebido', {
+      event: payload.event,
+      signature: signature ? 'presente' : 'ausente'
+    });
+
+    // Validar assinatura do webhook
+    if (signature && !hotmartService.validateWebhook(payload, signature)) {
+      logger.warn('Assinatura do webhook Hotmart inválida', {
+        signature,
+        payload: JSON.stringify(payload)
+      });
+      
+      return res.status(401).json({
+        error: 'Assinatura inválida'
+      });
+    }
+
+    // Processar webhook
+    const result = await hotmartService.processWebhook(payload);
+
+    if (!result.success) {
+      logger.error('Erro ao processar webhook Hotmart', {
+        error: result.error,
+        payload: JSON.stringify(payload)
+      });
+      
+      return res.status(400).json({
+        error: result.error
+      });
+    }
+
+    logger.info('Webhook Hotmart processado com sucesso', {
+      event: payload.event,
+      message: result.message
+    });
+
+    res.json({
+      success: true,
+      message: result.message
+    });
+
+  } catch (error) {
+    logger.error('Erro interno no webhook Hotmart', {
+      error: error.message,
+      stack: error.stack,
+      payload: JSON.stringify(req.body)
+    });
+
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route GET /api/payments/hotmart/status/:transactionId
+ * @desc Verificar status de transação na Hotmart
+ * @access Private
+ */
+router.get('/hotmart/status/:transactionId', authenticate, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const user = req.user;
+
+    logger.info('Consultando status da transação Hotmart', {
+      userId: user.id,
+      transactionId
+    });
+
+    // Consultar status na Hotmart
+    const result = await hotmartService.getTransactionStatus(transactionId);
+
+    if (!result.success) {
+      logger.error('Erro ao consultar transação Hotmart', {
+        userId: user.id,
+        transactionId,
+        error: result.error
+      });
+      
+      return res.status(400).json({
+        error: result.error
+      });
+    }
+
+    logger.info('Status da transação Hotmart consultado', {
+      userId: user.id,
+      transactionId,
+      status: result.status
+    });
+
+    res.json({
+      success: true,
+      status: result.status,
+      data: result.data
+    });
+
+  } catch (error) {
+    logger.error('Erro interno ao consultar transação Hotmart', {
+      userId: req.user?.id,
+      transactionId: req.params.transactionId,
+      error: error.message,
+      stack: error.stack
+    });
+
     res.status(500).json({
       error: 'Erro interno do servidor'
     });

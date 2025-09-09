@@ -63,7 +63,17 @@ const environments = {
       mercadoPago: {
         accessToken: 'TEST-1234567890123456-123456-abcdef1234567890abcdef1234567890-123456789',
         publicKey: 'TEST-abcdef12-3456-7890-abcd-ef1234567890'
-      }
+      },
+      hotmart: {
+          clientId: process.env.HOTMART_CLIENT_ID || 'dev_client_id',
+          clientSecret: process.env.HOTMART_CLIENT_SECRET || 'dev_client_secret',
+          basicToken: process.env.HOTMART_BASIC_TOKEN || 'dev_basic_token',
+          productId: process.env.HOTMART_PRODUCT_ID || 'dev_product_id',
+          sandboxMode: true,
+          successUrl: process.env.HOTMART_SUCCESS_URL || 'http://localhost:3000/upgrade/success',
+          cancelUrl: process.env.HOTMART_CANCEL_URL || 'http://localhost:3000/upgrade/cancel',
+          webhookUrl: process.env.HOTMART_WEBHOOK_URL || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`
+        }
     },
     
     // SSL
@@ -148,6 +158,15 @@ const environments = {
       mercadoPago: {
         accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || 'PROD-access-token',
         publicKey: process.env.MERCADO_PAGO_PUBLIC_KEY || 'PROD-public-key'
+      },
+      hotmart: {
+        clientId: process.env.HOTMART_CLIENT_ID || 'prod_client_id',
+        clientSecret: process.env.HOTMART_CLIENT_SECRET || 'prod_client_secret',
+        basicToken: process.env.HOTMART_BASIC_TOKEN || 'prod_basic_token',
+        sandboxMode: false,
+        successUrl: process.env.HOTMART_SUCCESS_URL || 'https://buyandhold.vargascode.com.br/upgrade/success',
+        cancelUrl: process.env.HOTMART_CANCEL_URL || 'https://buyandhold.vargascode.com.br/upgrade/cancel',
+        webhookUrl: process.env.HOTMART_WEBHOOK_URL || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook'
       }
     },
     
@@ -235,6 +254,15 @@ const environments = {
       mercadoPago: {
         accessToken: 'TEST-1234567890123456-123456-abcdef1234567890abcdef1234567890-123456789',
         publicKey: 'TEST-abcdef12-3456-7890-abcd-ef1234567890'
+      },
+      hotmart: {
+        clientId: 'test_client_id',
+        clientSecret: 'test_client_secret',
+        basicToken: 'test_basic_token',
+        sandboxMode: true,
+        successUrl: 'http://localhost:3000/upgrade/success',
+        cancelUrl: 'http://localhost:3000/upgrade/cancel',
+        webhookUrl: 'http://localhost:5000/api/payments/hotmart/webhook'
       }
     },
     

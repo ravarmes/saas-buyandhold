@@ -24,6 +24,8 @@ import SuggestFeature from './pages/SuggestFeature';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import UpgradeSuccess from './pages/UpgradeSuccess';
+import UpgradeCancel from './pages/UpgradeCancel';
 
 function App() {
   // Injetar configurações de SEO baseadas no ambiente
@@ -69,6 +71,16 @@ function App() {
                 <Route path="/upgrade" element={
                   <ProtectedRoute>
                     <Upgrade />
+                  </ProtectedRoute>
+                } />
+                <Route path="/upgrade/success" element={
+                  <ProtectedRoute>
+                    <UpgradeSuccess />
+                  </ProtectedRoute>
+                } />
+                <Route path="/upgrade/cancel" element={
+                  <ProtectedRoute>
+                    <UpgradeCancel />
                   </ProtectedRoute>
                 } />
                 <Route path="/help-center" element={

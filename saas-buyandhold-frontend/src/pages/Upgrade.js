@@ -74,17 +74,32 @@ const Upgrade = () => {
       const token = localStorage.getItem('token');
       console.log('Token encontrado:', token ? 'Sim' : 'Não');
       
-      // Usar a nova API do Mercado Pago para PIX
-      const endpoint = selectedPaymentMethod === 'pix' 
-        ? '/payments/create-mercadopago'
-                : '/payments/create';
+      let endpoint, requestData;
+      
+      // Definir endpoint baseado no método de pagamento
+      if (selectedPaymentMethod === 'hotmart') {
+        endpoint = '/payments/create-hotmart-link';
+        requestData = {
+          amount: 15.00,
+          productName: 'Plano Premium - Buy and Hold'
+        };
+      } else if (selectedPaymentMethod === 'pix') {
+        endpoint = '/payments/create-mercadopago';
+        requestData = {
+          paymentMethod: selectedPaymentMethod,
+          amount: 15.00
+        };
+      } else {
+        endpoint = '/payments/create';
+        requestData = {
+          paymentMethod: selectedPaymentMethod,
+          amount: 15.00
+        };
+      }
       
       const response = await axios.post(
         endpoint,
-        {
-          paymentMethod: selectedPaymentMethod,
-          amount: 15.00
-        },
+        requestData,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -92,8 +107,22 @@ const Upgrade = () => {
 
       console.log('Resposta da API:', response.data);
       
-      // Estrutura de dados diferente para Mercado Pago
-      if (selectedPaymentMethod === 'pix' && response.data.payment) {
+      // Estrutura de dados diferente para cada método
+      if (selectedPaymentMethod === 'hotmart') {
+        // Para Hotmart, redirecionar diretamente para o checkout
+        const paymentUrl = response.data.paymentUrl || response.data.checkoutUrl || response.data.url || response.data?.data?.payment_url;
+        if (paymentUrl) {
+          const newWindow = window.open(paymentUrl, '_blank');
+          if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            // Fallback se popup for bloqueado
+            window.location.href = paymentUrl;
+          }
+          setSuccess('Redirecionando para o checkout da Hotmart...');
+        } else {
+          console.error('PaymentUrl não encontrada na resposta:', response.data);
+          setError('Erro: Link de pagamento não foi gerado');
+        }
+      } else if (selectedPaymentMethod === 'pix' && response.data.payment) {
         setPaymentData({
           ...response.data.subscription,
           paymentData: {
@@ -104,12 +133,15 @@ const Upgrade = () => {
           },
           mercadoPagoPayment: response.data.payment
         });
+        setShowPaymentModal(true);
       } else {
         setPaymentData(response.data.subscription);
+        setShowPaymentModal(true);
       }
       
-      setShowPaymentModal(true);
-      setSuccess('Pagamento criado com sucesso!');
+      if (selectedPaymentMethod !== 'hotmart') {
+        setSuccess('Pagamento criado com sucesso!');
+      }
     } catch (error) {
       console.error('Erro ao criar pagamento:', error);
       console.error('Resposta do erro:', error.response?.data);
@@ -399,28 +431,78 @@ const Upgrade = () => {
             </div>
           </div>
 
-          {/* Método de Pagamento - Apenas PIX */}
+          {/* Seleção de Método de Pagamento */}
           <div className="mb-6">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Escolha o método de pagamento:</h3>
+            
+            {/* PIX */}
+            <div 
+              className={`border rounded-lg p-4 mb-3 cursor-pointer transition-colors ${
+                selectedPaymentMethod === 'pix' 
+                  ? 'border-green-500 bg-green-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedPaymentMethod('pix')}
+            >
               <div className="flex items-center">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="pix"
+                  checked={selectedPaymentMethod === 'pix'}
+                  onChange={() => setSelectedPaymentMethod('pix')}
+                  className="mr-3"
+                />
                 <svg className="w-6 h-6 text-green-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
                 <div>
-                  <h3 className="font-semibold text-green-800">Pagamento via PIX</h3>
-                  <p className="text-sm text-green-700">Pagamento instantâneo e seguro</p>
+                  <h4 className="font-semibold text-gray-800">PIX (Mercado Pago)</h4>
+                  <p className="text-sm text-gray-600">Pagamento instantâneo e seguro</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Hotmart */}
+            <div 
+              className={`border rounded-lg p-4 mb-3 cursor-pointer transition-colors ${
+                selectedPaymentMethod === 'hotmart' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedPaymentMethod('hotmart')}
+            >
+              <div className="flex items-center">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="hotmart"
+                  checked={selectedPaymentMethod === 'hotmart'}
+                  onChange={() => setSelectedPaymentMethod('hotmart')}
+                  className="mr-3"
+                />
+                <svg className="w-6 h-6 text-blue-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h9V9zm0 7v-3h-9v3h9z"/>
+                </svg>
+                <div>
+                  <h4 className="font-semibold text-gray-800">Hotmart</h4>
+                  <p className="text-sm text-gray-600">PIX, Cartão de Crédito, Boleto e mais</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Botão de Upgrade para PIX */}
+          {/* Botão de Upgrade */}
           <button
               onClick={handleCreatePayment}
               disabled={loading}
               className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Processando...' : 'Fazer Upgrade Premium'}
+              {loading ? 'Processando...' : 
+                selectedPaymentMethod === 'hotmart' ? 'Pagar com Hotmart' :
+                selectedPaymentMethod === 'pix' ? 'Pagar com PIX' :
+                'Fazer Upgrade Premium'
+              }
             </button>
         </div>
 

@@ -22,7 +22,7 @@ module.exports = (sequelize) => {
       defaultValue: 'pending'
     },
     paymentMethod: {
-      type: DataTypes.ENUM('pix', 'credit_card', 'pix_mercadopago', 'pix_dev', 'credit_card_mercadopago', 'credit_card_dev'),
+      type: DataTypes.ENUM('pix', 'credit_card', 'pix_mercadopago', 'pix_dev', 'credit_card_mercadopago', 'credit_card_dev', 'hotmart'),
       allowNull: false
     },
     amount: {
