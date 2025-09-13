@@ -5,6 +5,7 @@ const mercadoPagoService = require('../services/MercadoPagoService');
 const hotmartService = require('../services/HotmartService');
 const { payments } = require('../../config/environment');
 const logger = require('../utils/logger');
+const QRCode = require('qrcode');
 const router = express.Router();
 
 /**
@@ -14,12 +15,12 @@ const router = express.Router();
  */
 router.get('/mercadopago-config', (req, res) => {
   try {
-    const isTestEnvironment = process.env.NODE_ENV !== 'production';
+    const isTestEnvironment = process.env.APP_ENV !== 'production';
     
     res.json({
       publicKey: payments.mercadoPago.publicKey,
       isTestEnvironment: isTestEnvironment,
-      environment: process.env.NODE_ENV || 'development'
+      environment: process.env.APP_ENV || 'development'
     });
   } catch (error) {
     logger.error('Erro ao obter configurações do Mercado Pago', {
@@ -275,7 +276,7 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
     logger.info('Assinaturas pendentes antigas canceladas', { userId });
 
     // Verificar se deve usar Mercado Pago real ou PIX simulado
-    const useRealMercadoPago = process.env.NODE_ENV === 'production' || process.env.USE_REAL_MERCADOPAGO === 'true';
+    const useRealMercadoPago = process.env.APP_ENV === 'production' || process.env.USE_REAL_MERCADOPAGO === 'true';
     
     let pixPayment;
     let paymentId;
@@ -429,7 +430,7 @@ router.post('/create-credit-card', authenticate, async (req, res) => {
     }
 
     // Verificar se deve usar Mercado Pago real ou simulado
-    const useRealMercadoPago = process.env.NODE_ENV === 'production' || process.env.USE_REAL_MERCADOPAGO === 'true';
+    const useRealMercadoPago = process.env.APP_ENV === 'production' || process.env.USE_REAL_MERCADOPAGO === 'true';
     
     let creditCardPayment;
     let paymentId;
@@ -923,19 +924,30 @@ router.post('/confirm', authenticate, async (req, res) => {
     const { subscriptionId, paymentId } = req.body;
     const userId = req.user.userId;
 
+    // Validar parâmetros obrigatórios
+    if (!subscriptionId) {
+      return res.status(400).json({
+        error: 'É necessário criar um pagamento primeiro. Clique em "Pagar com PIX" ou "Pagar com Hotmart" para gerar um código de pagamento.',
+        requiresPaymentCreation: true,
+        suggestion: 'Crie um pagamento antes de tentar confirmar'
+      });
+    }
+
     // Buscar assinatura
     const subscription = await Subscription.findOne({
       where: {
         id: subscriptionId,
         userId,
-        paymentId,
+        ...(paymentId && { paymentId }),
         status: 'pending'
       }
     });
 
     if (!subscription) {
       return res.status(404).json({
-        error: 'Assinatura não encontrada ou já processada'
+        error: 'Assinatura não encontrada ou já processada. Crie um novo pagamento se necessário.',
+        requiresPaymentCreation: true,
+        suggestion: 'Gere um novo código de pagamento'
       });
     }
 
@@ -947,7 +959,12 @@ router.post('/confirm', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Payment confirmation error:', error);
+    logger.error('Payment confirmation error', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.userId,
+      subscriptionId: req.body?.subscriptionId
+    });
     res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -1260,56 +1277,251 @@ router.post('/simulate-payment', authenticate, async (req, res) => {
       });
     }
 
-    // Buscar a assinatura pelo paymentId
+    // Buscar a assinatura pelo paymentId (pode ser pending ou cancelled)
     // Converter paymentId para string para garantir compatibilidade
-    const subscription = await Subscription.findOne({
+    let subscription = await Subscription.findOne({
       where: {
         paymentId: paymentId.toString(),
         userId: userId,
-        status: 'pending'
+        status: ['pending', 'cancelled']
       }
     });
 
+    // Se não encontrou, criar uma nova assinatura para simulação
     if (!subscription) {
-      return res.status(404).json({
-        error: 'Pagamento não encontrado ou já processado'
+      subscription = await Subscription.create({
+         userId: userId,
+         planType: 'premium',
+         status: 'pending',
+         paymentMethod: 'pix',
+         amount: 15.00,
+         currency: 'BRL',
+         startDate: new Date(),
+         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+         paymentId: paymentId.toString(),
+         paymentData: {
+           simulationId: paymentId,
+           createdAt: new Date().toISOString()
+         }
+       });
+    }
+
+    // Verificar se deve simular cancelamento
+    if (paymentId.includes('cancelled')) {
+      // Simular cancelamento do pagamento
+      await subscription.update({
+        status: 'cancelled'
+      });
+
+      // Manter usuário como free
+      await User.update(
+        { 
+          planType: 'free',
+          subscriptionStatus: 'cancelled'
+        },
+        { where: { id: userId } }
+      );
+
+      logger.info('Pagamento simulado como cancelado', {
+        userId,
+        subscriptionId: subscription.id,
+        paymentId
+      });
+
+      res.json({
+        success: true,
+        message: 'Pagamento simulado como cancelado com sucesso!',
+        subscription: {
+          id: subscription.id,
+          status: subscription.status,
+          planType: subscription.planType,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate
+        }
+      });
+    } else {
+      // Simular aprovação do pagamento
+      await subscription.update({
+        status: 'active'
+      });
+
+      // Atualizar usuário para premium
+      await User.update(
+        { 
+          planType: 'premium',
+          subscriptionStatus: 'active'
+        },
+        { where: { id: userId } }
+      );
+
+      logger.info('Pagamento simulado como aprovado', {
+        userId,
+        subscriptionId: subscription.id,
+        paymentId
+      });
+
+      res.json({
+        success: true,
+        message: 'Pagamento simulado como aprovado com sucesso!',
+        subscription: {
+          id: subscription.id,
+          status: subscription.status,
+          planType: subscription.planType,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate
+        }
       });
     }
 
-    // Simular aprovação do pagamento
-    await subscription.update({
-      status: 'active'
+  } catch (error) {
+    logger.error('Erro ao simular pagamento', {
+      error: error.message,
+      stack: error.stack
     });
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
 
-    // Atualizar usuário para premium
-    await User.update(
-      { 
-        planType: 'premium',
-        subscriptionStatus: 'active'
-      },
-      { where: { id: userId } }
-    );
+/**
+ * @route POST /api/payments/simulate-hotmart-success
+ * @desc Simular sucesso de pagamento Hotmart para testes (apenas ambiente de desenvolvimento)
+ * @access Private
+ */
+router.post('/simulate-hotmart-success', authenticate, async (req, res) => {
+  try {
+    const { linkId } = req.body;
+    const userId = req.user.userId;
 
-    logger.info('Pagamento simulado como aprovado', {
+    if (!linkId) {
+      return res.status(400).json({
+        error: 'ID do link de pagamento é obrigatório'
+      });
+    }
+
+    // Verificar se está em ambiente de desenvolvimento/sandbox
+    const { isProduction } = require('../../config/environment');
+    if (isProduction) {
+      return res.status(403).json({
+        error: 'Simulação de pagamento disponível apenas em ambiente de desenvolvimento'
+      });
+    }
+
+    // Simular webhook de sucesso da Hotmart
+    const webhookPayload = {
+      event: 'PURCHASE_COMPLETE',
+      data: {
+        product: {
+          id: payments.hotmart.productId,
+          price: 15.00
+        },
+        transaction: {
+          id: linkId,
+          status: 'COMPLETE',
+          approved_date: new Date().toISOString()
+        },
+        buyer: {
+          email: req.user.email,
+          name: req.user.name
+        }
+      }
+    };
+
+    // Processar webhook simulado
+    const result = await hotmartService.processWebhook(webhookPayload);
+
+    if (result.success) {
+      logger.info('Pagamento Hotmart simulado como sucesso', {
+        userId,
+        linkId,
+        event: 'PURCHASE_COMPLETE'
+      });
+
+      res.json({
+        success: true,
+        message: 'Pagamento Hotmart simulado como aprovado com sucesso!',
+        data: result.data
+      });
+    } else {
+      res.status(400).json({
+        error: 'Erro ao processar simulação de sucesso'
+      });
+    }
+
+  } catch (error) {
+    logger.error('Erro ao simular sucesso Hotmart', {
+      error: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/simulate-hotmart-failure
+ * @desc Simular falha de pagamento Hotmart para testes (apenas ambiente de desenvolvimento)
+ * @access Private
+ */
+router.post('/simulate-hotmart-failure', authenticate, async (req, res) => {
+  try {
+    const { linkId } = req.body;
+    const userId = req.user.userId;
+
+    if (!linkId) {
+      return res.status(400).json({
+        error: 'ID do link de pagamento é obrigatório'
+      });
+    }
+
+    // Verificar se está em ambiente de desenvolvimento/sandbox
+    const { isProduction } = require('../../config/environment');
+    if (isProduction) {
+      return res.status(403).json({
+        error: 'Simulação de pagamento disponível apenas em ambiente de desenvolvimento'
+      });
+    }
+
+    // Simular webhook de falha da Hotmart
+    const webhookPayload = {
+      event: 'PURCHASE_CANCELED',
+      data: {
+        product: {
+          id: payments.hotmart.productId,
+          price: 15.00
+        },
+        transaction: {
+          id: linkId,
+          status: 'CANCELED',
+          canceled_date: new Date().toISOString(),
+          cancel_reason: 'Simulação de falha no pagamento'
+        },
+        buyer: {
+          email: req.user.email,
+          name: req.user.name
+        }
+      }
+    };
+
+    // Processar webhook simulado
+    const result = await hotmartService.processWebhook(webhookPayload);
+
+    logger.info('Pagamento Hotmart simulado como falha', {
       userId,
-      subscriptionId: subscription.id,
-      paymentId
+      linkId,
+      event: 'PURCHASE_CANCELED'
     });
 
     res.json({
       success: true,
-      message: 'Pagamento simulado como aprovado com sucesso!',
-      subscription: {
-        id: subscription.id,
-        status: subscription.status,
-        planType: subscription.planType,
-        startDate: subscription.startDate,
-        endDate: subscription.endDate
-      }
+      message: 'Pagamento Hotmart simulado como cancelado/falhado!',
+      data: result.data || { status: 'canceled' }
     });
 
   } catch (error) {
-    logger.error('Erro ao simular pagamento', {
+    logger.error('Erro ao simular falha Hotmart', {
       error: error.message,
       stack: error.stack
     });
@@ -1494,10 +1706,26 @@ router.post('/hotmart/webhook', async (req, res) => {
     const signature = req.headers['x-hotmart-signature'];
     const payload = req.body;
 
-    logger.info('Webhook Hotmart recebido', {
-      event: payload.event,
+    // Log detalhado de todas as informações recebidas
+    logger.info('=== WEBHOOK HOTMART RECEBIDO ===', {
+      timestamp: new Date().toISOString(),
+      headers: {
+        'x-hotmart-signature': signature,
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'ngrok-agent-ips': req.headers['ngrok-agent-ips']
+      },
+      payload: JSON.stringify(payload, null, 2),
+      event: payload?.event,
       signature: signature ? 'presente' : 'ausente'
     });
+
+    console.log('=== WEBHOOK HOTMART DEBUG ===');
+    console.log('Event:', payload?.event);
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('================================');
 
     // Validar assinatura do webhook
     if (signature && !hotmartService.validateWebhook(payload, signature)) {
@@ -1600,6 +1828,279 @@ router.get('/hotmart/status/:transactionId', authenticate, async (req, res) => {
 
     res.status(500).json({
       error: 'Erro interno do servidor'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/create-hotmart-pix
+ * @desc Gerar código PIX específico para upgrade Premium via Hotmart
+ * @access Private
+ */
+router.post('/create-hotmart-pix', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    // Verificar se usuário já é Premium
+    if (user.subscription_type === 'premium') {
+      return res.status(400).json({
+        error: 'Usuário já possui assinatura Premium'
+      });
+    }
+
+    // Gerar identificador único para este PIX específico
+    const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substr(2, 8);
+    const pixId = `HOTMART_${userId}_${timestamp}_${randomSuffix}`;
+    
+    // Dados para geração do PIX
+    const pixData = {
+      pixKey: payments.pix.key,
+      merchantName: 'Buy and Hold Premium',
+      merchantCity: 'SAO PAULO',
+      amount: '15.00', // Valor fixo R$ 15,00
+      txId: pixId,
+      userId: userId
+    };
+
+    // Gerar código PIX
+    const pixCode = generatePixCode(pixData);
+    
+    // Gerar QR Code real em base64
+    let qrCodeBase64;
+    try {
+      qrCodeBase64 = await QRCode.toDataURL(pixCode, {
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        width: 256
+      });
+    } catch (qrError) {
+      logger.error('Erro ao gerar QR Code', { error: qrError.message });
+      // Fallback para um QR Code básico se houver erro
+      qrCodeBase64 = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`;
+    }
+    
+    // Salvar informações do PIX no banco (opcional - para rastreamento)
+    // Você pode criar uma tabela específica para isso se necessário
+    
+    logger.info('PIX Hotmart gerado com sucesso', {
+      userId,
+      pixId,
+      amount: '15.00'
+    });
+
+    res.json({
+      success: true,
+      pixCode,
+      pixId,
+      amount: '15.00',
+      qrCodeData: pixCode, // Mesmo código para gerar QR Code
+      qrCodeBase64, // QR Code em base64 para exibição
+      expiresIn: 30 * 60 * 1000, // 30 minutos em milliseconds
+      userData: {
+        name: user.name,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    logger.error('Erro ao gerar PIX Hotmart', {
+      error: error.message,
+      userId: req.user?.id
+    });
+    
+    res.status(500).json({
+      error: 'Erro interno do servidor ao gerar código PIX'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/simulate-hotmart-pix
+ * @desc Simular pagamento PIX da Hotmart (apenas em desenvolvimento)
+ * @access Private
+ */
+router.post('/simulate-hotmart-pix', authenticate, async (req, res) => {
+  try {
+    // Verificar se está em ambiente de desenvolvimento
+    if (process.env.APP_ENV === 'production') {
+      return res.status(403).json({
+        error: 'Simulação disponível apenas em ambiente de desenvolvimento'
+      });
+    }
+
+    const { pixId } = req.body;
+    const userId = req.user.id;
+    
+    if (!pixId) {
+      return res.status(400).json({
+        error: 'ID do PIX é obrigatório'
+      });
+    }
+
+    // Verificar se o PIX pertence ao usuário
+    if (!pixId.includes(`HOTMART_${userId}_`)) {
+      return res.status(403).json({
+        error: 'PIX não pertence ao usuário atual'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    // Log do estado atual do usuário
+    logger.info('=== SIMULAÇÃO PIX DEBUG ===');
+    logger.info('Estado antes da atualização', {
+      planType: user.planType,
+      subscriptionStatus: user.subscriptionStatus
+    });
+
+    // Simular atualização para Premium usando update direto
+    await User.update(
+      {
+        planType: 'premium',
+        subscriptionStatus: 'active'
+      },
+      {
+        where: { id: userId }
+      }
+    );
+
+    // Log após a atualização
+    logger.info('Estado após user.save()', {
+      planType: user.planType,
+      subscriptionStatus: user.subscriptionStatus
+    });
+    
+    // Buscar usuário atualizado do banco de dados para confirmar
+    const updatedUser = await User.findByPk(userId);
+    
+    logger.info('Estado do usuário no banco', {
+      planType: updatedUser.planType,
+      subscriptionStatus: updatedUser.subscriptionStatus
+    });
+
+    logger.info('Pagamento PIX Hotmart simulado com sucesso', {
+      userId,
+      pixId,
+      previousType: user.planType
+    });
+
+    res.json({
+      success: true,
+      message: 'Pagamento simulado com sucesso! Usuário atualizado para Premium.',
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        planType: updatedUser.planType,
+        subscriptionStatus: updatedUser.subscriptionStatus
+      }
+    });
+  } catch (error) {
+    logger.error('Erro ao simular pagamento PIX Hotmart', {
+      error: error.message,
+      userId: req.user?.id,
+      pixId: req.body?.pixId
+    });
+    
+    res.status(500).json({
+      error: 'Erro interno do servidor ao simular pagamento'
+    });
+  }
+});
+
+/**
+ * @route POST /api/payments/verify-hotmart-pix
+ * @desc Verificar status do pagamento PIX na Hotmart
+ * @access Private
+ */
+router.post('/verify-hotmart-pix', authenticate, async (req, res) => {
+  try {
+    const { pixId } = req.body;
+    const userId = req.user.id;
+    
+    if (!pixId) {
+      return res.status(400).json({
+        error: 'É necessário criar um pagamento primeiro. Clique em "Pagar com PIX" para gerar um código de pagamento.',
+        requiresPaymentCreation: true,
+        suggestion: 'Crie um pagamento antes de tentar confirmar'
+      });
+    }
+
+    // Verificar se o PIX pertence ao usuário
+    if (!pixId.includes(`HOTMART_${userId}_`)) {
+      return res.status(400).json({
+        error: 'Código PIX inválido ou não pertence ao usuário atual. Gere um novo código PIX.',
+        requiresPaymentCreation: true,
+        suggestion: 'Clique em "Pagar com PIX" para gerar um novo código'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        error: 'Usuário não encontrado'
+      });
+    }
+
+    // Em ambiente de desenvolvimento, simular verificação
+    if (process.env.APP_ENV === 'development') {
+      // Simular que o pagamento ainda não foi processado
+      return res.json({
+        success: true,
+        paid: false,
+        message: 'Pagamento ainda não foi processado. Para testar, use o botão "Simular Pagamento Aprovado".',
+        pixId,
+        currentSubscription: {
+          type: user.subscription_type,
+          status: user.subscription_status
+        }
+      });
+    }
+
+    // Em produção, aqui você implementaria a consulta real à API da Hotmart
+    // Por enquanto, retornar que não foi pago
+    res.json({
+      success: true,
+      paid: false,
+      message: 'Pagamento ainda não foi processado. Aguarde alguns minutos e tente novamente.',
+      pixId,
+      currentSubscription: {
+        type: user.subscription_type,
+        status: user.subscription_status
+      }
+    });
+
+    logger.info('Verificação de pagamento PIX Hotmart', {
+      userId,
+      pixId,
+      paid: false
+    });
+  } catch (error) {
+    logger.error('Erro ao verificar pagamento PIX Hotmart', {
+      error: error.message,
+      userId: req.user?.id,
+      pixId: req.body?.pixId
+    });
+    
+    res.status(500).json({
+      error: 'Erro interno do servidor ao verificar pagamento'
     });
   }
 });

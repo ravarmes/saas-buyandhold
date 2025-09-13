@@ -55,7 +55,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.APP_ENV || 'development'
   });
 });
 
@@ -79,7 +79,7 @@ app.use((err, req, res, next) => {
   
   res.status(500).json({
     error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'production' ? 'Algo deu errado' : err.message
+    message: process.env.APP_ENV === 'production' ? 'Algo deu errado' : err.message
   });
 });
 
@@ -100,14 +100,14 @@ async function startServer() {
     logger.info('Conexão com banco de dados estabelecida com sucesso');
     
     // Sync database models
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.APP_ENV !== 'production') {
       await sequelize.sync({ alter: true });
       logger.info('Modelos do banco sincronizados (alterados)');
     }
     
     app.listen(PORT, () => {
       logger.info(`Servidor rodando na porta ${PORT}`);
-      logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Ambiente: ${process.env.APP_ENV || 'development'}`);
       logger.info(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     });
   } catch (error) {

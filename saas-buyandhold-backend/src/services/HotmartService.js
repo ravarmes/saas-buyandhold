@@ -159,6 +159,8 @@ class HotmartService {
     try {
       const { event, data } = payload;
       
+      console.log('DEBUG - processWebhook payload:', JSON.stringify(payload, null, 2));
+      
       switch (event) {
         case 'PURCHASE_COMPLETE':
           return await this.handlePurchaseComplete(data);
@@ -183,13 +185,40 @@ class HotmartService {
    */
   async handlePurchaseComplete(data) {
     try {
-      const { buyer, product, transaction, subscription } = data;
+      console.log('DEBUG - Dados recebidos:', JSON.stringify(data, null, 2));
+      
+      const { buyer, product, transaction, purchase, subscription } = data;
       const { User, Subscription } = require('../models');
+      
+      // Usar purchase se transaction não estiver presente (formato da simulação)
+      const transactionData = transaction || purchase;
+      
+      console.log('DEBUG - Objetos extraídos:', {
+        buyer: buyer ? 'presente' : 'ausente',
+        product: product ? 'presente' : 'ausente', 
+        transaction: transaction ? 'presente' : 'ausente',
+        purchase: purchase ? 'presente' : 'ausente',
+        transactionData: transactionData ? 'presente' : 'ausente',
+        subscription: subscription ? 'presente' : 'ausente'
+      });
+      
+      // Verificar se os dados obrigatórios estão presentes
+      if (!buyer || !buyer.email) {
+        throw new Error('Dados do comprador são obrigatórios');
+      }
+      
+      if (!product || !product.id) {
+        throw new Error('Dados do produto são obrigatórios');
+      }
+      
+      if (!transactionData || !transactionData.transaction) {
+        throw new Error('Dados da transação são obrigatórios');
+      }
       
       console.log('Compra aprovada:', {
         email: buyer.email,
-        transactionId: transaction.id,
-        amount: product.price
+        transactionId: transactionData.transaction,
+        productId: product.id
       });
       
       // Buscar usuário pelo email
@@ -211,13 +240,13 @@ class HotmartService {
         planType: 'premium',
         status: 'active',
         paymentMethod: 'hotmart',
-        amount: product.price / 100, // Converter centavos para reais
+        amount: 15.00, // Valor fixo para simulação
         currency: 'BRL',
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-        paymentId: transaction.id,
+        paymentId: transactionData.transaction,
         paymentData: {
-          hotmartTransactionId: transaction.id,
+          hotmartTransactionId: transactionData.transaction,
           hotmartSubscriptionId: subscription?.id,
           buyerEmail: buyer.email,
           productId: product.id

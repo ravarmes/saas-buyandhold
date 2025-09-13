@@ -3,7 +3,7 @@ const path = require('path');
 const { database } = require('../../config/environment');
 
 // Verificar se está em ambiente de desenvolvimento
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.APP_ENV === 'development';
 
 // Configuração do banco de dados
 const dialectOptions = database.ssl ? { ssl: { require: true, rejectUnauthorized: false } } : {};

@@ -12,7 +12,7 @@ class EmailService {
     this.initialized = false;
 
     // Logs somente em desenvolvimento
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.REACT_APP_PROFILE !== 'production') {
       console.log('EmailJS Config Detalhado:', {
         serviceId: this.serviceId,
         templateId: this.templateId,
@@ -29,7 +29,7 @@ class EmailService {
   initEmailJS() {
     // Evitar tentativa de inicializar se não houver configuração
     if (!this.publicKey) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (process.env.REACT_APP_PROFILE !== 'production') {
         console.warn('[EmailService] Public key ausente. EmailJS não será inicializado.');
       }
       return false;
@@ -39,7 +39,7 @@ class EmailService {
       try {
         emailjs.init(this.publicKey);
         this.initialized = true;
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.REACT_APP_PROFILE !== 'production') {
           console.log('[EmailService] EmailJS inicializado com sucesso');
         }
       } catch (e) {

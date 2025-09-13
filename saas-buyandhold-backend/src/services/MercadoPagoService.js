@@ -16,9 +16,9 @@ class MercadoPagoService {
     this.preference = new Preference(this.client);
     
     // Log de inicialização
-    const environment = process.env.NODE_ENV || 'development';
+    const environment = process.env.APP_ENV || 'development';
     const mode = payments.mercadoPago.accessToken.startsWith('TEST-') ? 'TESTE (sandbox)' : 'PRODUÇÃO';
-    logger.info(`MercadoPago inicializado em modo: ${mode} - NODE_ENV: ${environment}`);
+    logger.info(`MercadoPago inicializado em modo: ${mode} - APP_ENV: ${environment}`);
   }
 
   /**

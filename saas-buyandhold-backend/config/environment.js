@@ -1,10 +1,10 @@
 /**
  * Configuração centralizada de ambiente para o backend
- * Detecta automaticamente o ambiente baseado em NODE_ENV
+ * Detecta automaticamente o ambiente baseado em APP_ENV
  * e carrega as configurações apropriadas
  */
 
-const runtimeEnv = process.env.APP_ENV || process.env.NODE_ENV || 'development';
+const runtimeEnv = process.env.APP_ENV || 'development';
 const isDevelopment = runtimeEnv === 'development';
 const isProduction = runtimeEnv === 'production';
 const isTest = runtimeEnv === 'test';
@@ -72,7 +72,7 @@ const environments = {
           sandboxMode: true,
           successUrl: process.env.HOTMART_SUCCESS_URL || 'http://localhost:3000/upgrade/success',
           cancelUrl: process.env.HOTMART_CANCEL_URL || 'http://localhost:3000/upgrade/cancel',
-          webhookUrl: process.env.HOTMART_WEBHOOK_URL || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`
+          webhookUrl: process.env.HOTMART_WEBHOOK_URL_DEV || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`
         }
     },
     
@@ -163,10 +163,11 @@ const environments = {
         clientId: process.env.HOTMART_CLIENT_ID || 'prod_client_id',
         clientSecret: process.env.HOTMART_CLIENT_SECRET || 'prod_client_secret',
         basicToken: process.env.HOTMART_BASIC_TOKEN || 'prod_basic_token',
+        productId: process.env.HOTMART_PRODUCT_ID || 'prod_product_id',
         sandboxMode: false,
         successUrl: process.env.HOTMART_SUCCESS_URL || 'https://buyandhold.vargascode.com.br/upgrade/success',
         cancelUrl: process.env.HOTMART_CANCEL_URL || 'https://buyandhold.vargascode.com.br/upgrade/cancel',
-        webhookUrl: process.env.HOTMART_WEBHOOK_URL || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook'
+        webhookUrl: process.env.HOTMART_WEBHOOK_URL_PROD || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook'
       }
     },
     
@@ -304,6 +305,17 @@ const currentEnvironment = isProduction ? 'production' :
 
 // Configuração ativa
 const config = environments[currentEnvironment];
+
+// Configurar HOTMART_WEBHOOK_URL dinamicamente baseado no APP_ENV
+if (config.payments && config.payments.hotmart) {
+  const appEnv = process.env.APP_ENV || 'development';
+  
+  if (appEnv === 'production') {
+    config.payments.hotmart.webhookUrl = process.env.HOTMART_WEBHOOK_URL_PROD || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook';
+  } else {
+    config.payments.hotmart.webhookUrl = process.env.HOTMART_WEBHOOK_URL_DEV || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`;
+  }
+}
 
 // Enriquecer CORS com FRONTEND_URL, se definido
 if (process.env.FRONTEND_URL) {

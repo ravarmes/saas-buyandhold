@@ -8,7 +8,7 @@ const getRuntimeOrigin = () => {
   return process.env.REACT_APP_APP_URL || 'http://localhost:3000';
 };
 
-const runtimeProfile = process.env.REACT_APP_PROFILE || process.env.NODE_ENV || 'development';
+const runtimeProfile = process.env.REACT_APP_PROFILE || process.env.REACT_APP_ENVIRONMENT || 'development';
 const isDevFlag = runtimeProfile === 'development';
 const isProdFlag = runtimeProfile === 'production';
 

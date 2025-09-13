@@ -315,7 +315,7 @@ const CreditCardForm = ({ onPaymentSuccess, onError, amount = 15.00 }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Cartões de Teste - só aparecem em ambiente de teste */}
-      {(isTestEnvironment || process.env.NODE_ENV === 'development') && (
+      {(isTestEnvironment || process.env.REACT_APP_PROFILE === 'development') && (
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <h4 className="font-medium text-blue-900 mb-3">🧪 Cartões de Teste do Mercado Pago</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">

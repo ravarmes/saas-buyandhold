@@ -2,7 +2,7 @@ const winston = require('winston');
 const { logs } = require('../../config/environment');
 
 // Verificar se está em ambiente de desenvolvimento
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.APP_ENV === 'development';
 
 // Configuração do logger
 const logger = winston.createLogger({
