@@ -6,8 +6,8 @@ class HotmartService {
   constructor() {
     this.clientId = payments.hotmart.clientId;
     this.clientSecret = payments.hotmart.clientSecret;
-    this.basicToken = payments.hotmart.basicToken;
-    this.webhookToken = process.env.HOTMART_WEBHOOK_TOKEN;
+    this.basicToken = payments.hotmart.basicAuth || payments.hotmart.basicToken;
+    this.webhookToken = process.env.HOTMART_WEBHOOK_TOKEN || payments.hotmart.webhookSecret;
     this.baseURL = 'https://developers.hotmart.com';
     this.sandboxURL = 'https://sandbox.hotmart.com';
     this.isSandbox = payments.hotmart.sandboxMode;
@@ -474,6 +474,59 @@ class HotmartService {
     } catch (error) {
       console.error('Erro ao processar cancelamento de assinatura:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Cria pagamento PIX via Hotmart
+   */
+  /**
+   * Cria um checkout da Hotmart com PIX como método de pagamento
+   * A Hotmart gerencia o PIX internamente através do checkout
+   */
+  async createPixPayment(pixData) {
+    try {
+      // Usar o método createCheckout com PIX como método preferencial
+      const checkoutData = {
+        ...pixData,
+        paymentMethod: 'PIX'
+      };
+      
+      console.log('Criando checkout Hotmart com PIX:', {
+        userId: pixData.userId,
+        amount: pixData.amount,
+        customerEmail: pixData.customerEmail
+      });
+      
+      const result = await this.createCheckout(checkoutData);
+      
+      if (result.success) {
+        return {
+          success: true,
+          checkoutUrl: result.checkoutUrl,
+          transactionId: result.transactionId,
+          pixCode: null, // A Hotmart gerencia o PIX no checkout
+          pixId: result.transactionId,
+          qrCodeBase64: null, // Será gerado no checkout da Hotmart
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutos
+          amount: pixData.amount,
+          data: result.data,
+          isHotmartCheckout: true
+        };
+      } else {
+        throw new Error(result.error || 'Falha ao criar checkout Hotmart');
+      }
+    } catch (error) {
+      console.error('Erro ao criar checkout PIX Hotmart:', {
+        status: error.response?.status,
+        data: error.response?.data || error.message,
+        userId: pixData.userId
+      });
+      
+      return {
+        success: false,
+        error: `Erro ao criar checkout PIX: ${error.message}`
+      };
     }
   }
 

@@ -1,5 +1,7 @@
 const express = require('express');
 const { User, Subscription } = require('../models');
+const hotmartWebhookService = require('../services/HotmartWebhookService');
+const subscriptionService = require('../services/SubscriptionService');
 const { authenticate } = require('../middleware/auth');
 const mercadoPagoService = require('../services/MercadoPagoService');
 const hotmartService = require('../services/HotmartService');
@@ -51,6 +53,16 @@ function crc16(data) {
 
 // Função para gerar código PIX válido seguindo padrão EMV
 function generatePixCode({ pixKey, merchantName, merchantCity, amount, txId, userId }) {
+  // Log das configurações recebidas para debug
+  logger.info('PIX Code Generation Started', {
+    pixKey: pixKey ? `${pixKey.substring(0, 5)}***` : 'undefined',
+    merchantName,
+    merchantCity,
+    amount,
+    txId,
+    userId: userId ? `***${userId.toString().slice(-4)}` : 'undefined'
+  });
+
   // Função auxiliar para formatar campo EMV
   const formatEMVField = (id, value) => {
     const length = value.length.toString().padStart(2, '0');
@@ -117,6 +129,14 @@ function generatePixCode({ pixKey, merchantName, merchantCity, amount, txId, use
   const crcValue = crc16(pixString);
   pixString += crcValue;
   
+  // Log do resultado para debug
+  logger.info('PIX Code Generated Successfully', {
+    codeLength: pixString.length,
+    crcValue,
+    txId: truncatedTxId,
+    isValidLength: pixString.length >= 100 && pixString.length <= 512
+  });
+  
   return pixString;
 }
 
@@ -170,21 +190,54 @@ router.post('/create', authenticate, async (req, res) => {
       // Gerar ID único para o pagamento PIX
       paymentId = `PIX_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Configurações PIX - podem ser personalizadas via variáveis de ambiente
-      const { payments } = require('../../config/environment');
-  const pixKey = payments.pix.key;
-  const pixName = process.env.PIX_NAME || 'SEU NOME COMPLETO';
-  const pixCity = process.env.PIX_CITY || 'SUA CIDADE';
+      // Configurações PIX - usar configurações reais de produção
+      const { payments, isProduction } = require('../../config/environment');
+      
+      // Em produção, usar chave PIX real do .env.docker
+      const pixKey = isProduction ? 
+        (process.env.PIX_KEY || payments.pix.key) : 
+        payments.pix.key;
+      
+      const pixName = process.env.PIX_NAME || (isProduction ? 'Buy and Hold Premium' : 'SEU NOME COMPLETO');
+      const pixCity = process.env.PIX_CITY || (isProduction ? 'SAO PAULO' : 'SUA CIDADE');
+      
+      // Log para debug em desenvolvimento
+      if (!isProduction) {
+        logger.info('Configurações PIX (desenvolvimento)', { pixKey, pixName, pixCity });
+      }
       
       // Gerar código PIX válido seguindo padrão EMV
-      const pixCode = generatePixCode({
-        pixKey,
-        merchantName: pixName,
-        merchantCity: pixCity,
-        amount: normalizedAmount.toFixed(2),
-        txId: paymentId.substring(0, 25), // Máximo 25 caracteres
-        userId: userId.toString()
-      });
+      let pixCode;
+      try {
+        pixCode = generatePixCode({
+          pixKey,
+          merchantName: pixName,
+          merchantCity: pixCity,
+          amount: normalizedAmount.toFixed(2),
+          txId: paymentId.substring(0, 25), // Máximo 25 caracteres
+          userId: userId.toString()
+        });
+        
+        // Validação básica do código gerado
+        if (!pixCode || pixCode.length < 100) {
+          throw new Error(`Código PIX inválido gerado: tamanho ${pixCode ? pixCode.length : 0}`);
+        }
+        
+        logger.info('PIX Code validation passed', {
+          paymentId,
+          codeLength: pixCode.length,
+          userId
+        });
+        
+      } catch (error) {
+        logger.error('Erro na geração do código PIX', {
+          error: error.message,
+          pixKey: pixKey ? `${pixKey.substring(0, 5)}***` : 'undefined',
+          paymentId,
+          userId
+        });
+        throw new Error('Falha na geração do código PIX');
+      }
       
       paymentData = {
         qrCode: pixCode,
@@ -306,9 +359,18 @@ router.post('/create-mercadopago', authenticate, async (req, res) => {
       // Usar PIX simulado (desenvolvimento) com códigos únicos
       paymentId = `PIX_DEV_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      const pixKey = payments.pix.key;
-    const pixName = process.env.PIX_NAME || 'SEU NOME';
-    const pixCity = process.env.PIX_CITY || 'SUA CIDADE';
+      // Em produção, usar chave PIX real do .env.docker
+      const pixKey = isProduction ? 
+        (process.env.PIX_KEY || payments.pix.key) : 
+        payments.pix.key;
+      
+      const pixName = process.env.PIX_NAME || (isProduction ? 'Buy and Hold Premium' : 'SEU NOME');
+      const pixCity = process.env.PIX_CITY || (isProduction ? 'SAO PAULO' : 'SUA CIDADE');
+      
+      // Log para debug em desenvolvimento
+      if (!isProduction) {
+        logger.info('Configurações PIX Mercado Pago (desenvolvimento)', { pixKey, pixName, pixCity });
+      }
       
       // Gerar código PIX único usando nossa função personalizada
       const pixCode = generatePixCode({
@@ -1701,77 +1763,96 @@ router.post('/create-hotmart-link', authenticate, async (req, res) => {
  * @desc Webhook da Hotmart para processar eventos de pagamento
  * @access Public
  */
+/**
+ * @route POST /api/payments/hotmart/webhook
+ * @desc Webhook da Hotmart para processar eventos de pagamento
+ * @access Public (validado por assinatura HMAC)
+ */
 router.post('/hotmart/webhook', async (req, res) => {
   try {
-    const signature = req.headers['x-hotmart-signature'];
+    const signature = req.headers['x-hotmart-signature'] || req.headers['x-signature'];
     const payload = req.body;
+    const headers = req.headers;
 
     // Log detalhado de todas as informações recebidas
     logger.info('=== WEBHOOK HOTMART RECEBIDO ===', {
       timestamp: new Date().toISOString(),
+      eventType: payload?.event || payload?.type,
+      eventId: payload?.id || payload?.transaction?.id,
       headers: {
-        'x-hotmart-signature': signature,
-        'content-type': req.headers['content-type'],
-        'user-agent': req.headers['user-agent'],
-        'x-forwarded-for': req.headers['x-forwarded-for'],
-        'ngrok-agent-ips': req.headers['ngrok-agent-ips']
+        'x-hotmart-signature': signature ? 'presente' : 'ausente',
+        'content-type': headers['content-type'],
+        'user-agent': headers['user-agent'],
+        'x-forwarded-for': headers['x-forwarded-for']
       },
-      payload: JSON.stringify(payload, null, 2),
-      event: payload?.event,
-      signature: signature ? 'presente' : 'ausente'
+      payloadSize: JSON.stringify(payload).length,
+      buyerEmail: payload?.data?.buyer?.email || payload?.buyer?.email
     });
 
-    console.log('=== WEBHOOK HOTMART DEBUG ===');
-    console.log('Event:', payload?.event);
-    console.log('Payload:', JSON.stringify(payload, null, 2));
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('================================');
-
-    // Validar assinatura do webhook
-    if (signature && !hotmartService.validateWebhook(payload, signature)) {
+    // Validar assinatura do webhook (se configurada)
+    if (signature && !hotmartWebhookService.validateWebhookSignature(payload, signature)) {
       logger.warn('Assinatura do webhook Hotmart inválida', {
-        signature,
-        payload: JSON.stringify(payload)
+        signature: signature ? 'presente' : 'ausente',
+        eventType: payload?.event || payload?.type
       });
       
       return res.status(401).json({
-        error: 'Assinatura inválida'
+        error: 'Assinatura inválida',
+        success: false
       });
     }
 
-    // Processar webhook
-    const result = await hotmartService.processWebhook(payload);
+    // Processar webhook com idempotência
+    const result = await hotmartWebhookService.processWebhook(payload, headers, signature);
+
+    // Se é evento duplicado, retornar sucesso
+    if (result.duplicate) {
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        duplicate: true
+      });
+    }
 
     if (!result.success) {
       logger.error('Erro ao processar webhook Hotmart', {
         error: result.error,
-        payload: JSON.stringify(payload)
+        eventType: payload?.event || payload?.type,
+        eventId: payload?.id || payload?.transaction?.id
       });
       
       return res.status(400).json({
+        success: false,
         error: result.error
       });
     }
 
     logger.info('Webhook Hotmart processado com sucesso', {
-      event: payload.event,
+      eventType: payload?.event || payload?.type,
+      eventId: payload?.id || payload?.transaction?.id,
       message: result.message
     });
 
-    res.json({
+    // Retornar resposta de sucesso para a Hotmart
+    res.status(200).json({
       success: true,
-      message: result.message
+      message: result.message,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
     logger.error('Erro interno no webhook Hotmart', {
       error: error.message,
       stack: error.stack,
-      payload: JSON.stringify(req.body)
+      eventType: req.body?.event || req.body?.type,
+      eventId: req.body?.id || req.body?.transaction?.id
     });
 
+    // Retornar erro 500 para que a Hotmart tente novamente
     res.status(500).json({
-      error: 'Erro interno do servidor'
+      success: false,
+      error: 'Erro interno do servidor',
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -1833,11 +1914,11 @@ router.get('/hotmart/status/:transactionId', authenticate, async (req, res) => {
 });
 
 /**
- * @route POST /api/payments/create-hotmart-pix
- * @desc Gerar código PIX específico para upgrade Premium via Hotmart
+ * @route POST /api/payments/create-hotmart-checkout
+ * @desc Criar checkout da Hotmart para upgrade Premium
  * @access Private
  */
-router.post('/create-hotmart-pix', authenticate, async (req, res) => {
+router.post('/create-hotmart-checkout', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findByPk(userId);
@@ -1855,255 +1936,155 @@ router.post('/create-hotmart-pix', authenticate, async (req, res) => {
       });
     }
 
-    // Gerar identificador único para este PIX específico
-    const timestamp = Date.now();
-    const randomSuffix = Math.random().toString(36).substr(2, 8);
-    const pixId = `HOTMART_${userId}_${timestamp}_${randomSuffix}`;
-    
-    // Dados para geração do PIX
-    const pixData = {
-      pixKey: payments.pix.key,
-      merchantName: 'Buy and Hold Premium',
-      merchantCity: 'SAO PAULO',
-      amount: '15.00', // Valor fixo R$ 15,00
-      txId: pixId,
-      userId: userId
+    // Dados para criação do checkout via Hotmart
+    const checkoutData = {
+      userId: userId,
+      customerName: user.name,
+      customerEmail: user.email,
+      customerDocument: user.document || '',
+      customerPhone: user.phone || '',
+      amount: 1500 // R$ 15,00 em centavos
     };
 
-    // Gerar código PIX
-    const pixCode = generatePixCode(pixData);
-    
-    // Gerar QR Code real em base64
-    let qrCodeBase64;
-    try {
-      qrCodeBase64 = await QRCode.toDataURL(pixCode, {
-        type: 'image/png',
-        quality: 0.92,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        },
-        width: 256
-      });
-    } catch (qrError) {
-      logger.error('Erro ao gerar QR Code', { error: qrError.message });
-      // Fallback para um QR Code básico se houver erro
-      qrCodeBase64 = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==`;
-    }
-    
-    // Salvar informações do PIX no banco (opcional - para rastreamento)
-    // Você pode criar uma tabela específica para isso se necessário
-    
-    logger.info('PIX Hotmart gerado com sucesso', {
+    logger.info('Criando checkout via Hotmart API', {
       userId,
-      pixId,
-      amount: '15.00'
+      customerEmail: user.email,
+      amount: checkoutData.amount
+    });
+
+    // Usar HotmartService para criar checkout
+    const result = await hotmartService.createCheckout(checkoutData);
+
+    if (!result.success) {
+      logger.error('Falha ao criar checkout Hotmart', {
+        userId,
+        error: result.error
+      });
+      
+      return res.status(400).json({
+        error: 'Erro ao criar checkout da Hotmart',
+        details: result.error
+      });
+    }
+
+    // Checkout criado com sucesso via Hotmart
+    logger.info('Checkout Hotmart criado com sucesso', {
+      userId,
+      transactionId: result.transactionId,
+      checkoutUrl: result.checkoutUrl
     });
 
     res.json({
       success: true,
-      pixCode,
-      pixId,
-      amount: '15.00',
-      qrCodeData: pixCode, // Mesmo código para gerar QR Code
-      qrCodeBase64, // QR Code em base64 para exibição
-      expiresIn: 30 * 60 * 1000, // 30 minutos em milliseconds
+      checkoutUrl: result.checkoutUrl,
+      transactionId: result.transactionId,
+      amount: (checkoutData.amount / 100).toFixed(2),
+      hotmart: true,
       userData: {
         name: user.name,
         email: user.email
       }
     });
   } catch (error) {
-    logger.error('Erro ao gerar PIX Hotmart', {
+    logger.error('Erro ao criar checkout Hotmart', {
       error: error.message,
       userId: req.user?.id
     });
     
     res.status(500).json({
-      error: 'Erro interno do servidor ao gerar código PIX'
+      error: 'Erro interno do servidor ao criar checkout'
     });
   }
 });
 
 /**
- * @route POST /api/payments/simulate-hotmart-pix
- * @desc Simular pagamento PIX da Hotmart (apenas em desenvolvimento)
+ * @route POST /api/payments/create-hotmart-pix
+ * @desc Criar pagamento PIX via Hotmart
  * @access Private
  */
-router.post('/simulate-hotmart-pix', authenticate, async (req, res) => {
+router.post('/create-hotmart-pix', authenticate, async (req, res) => {
   try {
-    // Verificar se está em ambiente de desenvolvimento
-    if (process.env.APP_ENV === 'production') {
-      return res.status(403).json({
-        error: 'Simulação disponível apenas em ambiente de desenvolvimento'
-      });
-    }
+    const { amount, productName } = req.body;
+    const user = req.user;
 
-    const { pixId } = req.body;
-    const userId = req.user.id;
-    
-    if (!pixId) {
+    // Validar dados do usuário
+    if (!user.email || !user.name) {
       return res.status(400).json({
-        error: 'ID do PIX é obrigatório'
+        error: 'Dados do usuário incompletos. Email e nome são obrigatórios.'
       });
     }
 
-    // Verificar se o PIX pertence ao usuário
-    if (!pixId.includes(`HOTMART_${userId}_`)) {
-      return res.status(403).json({
-        error: 'PIX não pertence ao usuário atual'
+    // Verificar se usuário já é Premium
+    if (user.subscription_type === 'premium') {
+      return res.status(400).json({
+        error: 'Usuário já possui assinatura Premium'
       });
     }
 
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: 'Usuário não encontrado'
+    // Preparar dados do pagamento PIX
+    const pixData = {
+      userId: user.id,
+      customerName: user.name,
+      customerEmail: user.email,
+      customerPhone: user.phone || '',
+      customerDocument: user.document || '',
+      amount: Math.round((amount || 15.00) * 100), // Converter para centavos
+      productName: productName || 'Plano Premium - Buy and Hold'
+    };
+
+    logger.info('Criando pagamento PIX via Hotmart', {
+      userId: user.id,
+      email: user.email,
+      amount: pixData.amount
+    });
+
+    // Criar pagamento PIX via Hotmart
+    const result = await hotmartService.createPixPayment(pixData);
+
+    if (!result.success) {
+      logger.error('Erro ao criar pagamento PIX Hotmart', {
+        userId: user.id,
+        error: result.error
+      });
+      
+      return res.status(400).json({
+        error: result.error || 'Erro ao processar pagamento PIX'
       });
     }
 
-    // Log do estado atual do usuário
-    logger.info('=== SIMULAÇÃO PIX DEBUG ===');
-    logger.info('Estado antes da atualização', {
-      planType: user.planType,
-      subscriptionStatus: user.subscriptionStatus
-    });
-
-    // Simular atualização para Premium usando update direto
-    await User.update(
-      {
-        planType: 'premium',
-        subscriptionStatus: 'active'
-      },
-      {
-        where: { id: userId }
-      }
-    );
-
-    // Log após a atualização
-    logger.info('Estado após user.save()', {
-      planType: user.planType,
-      subscriptionStatus: user.subscriptionStatus
-    });
-    
-    // Buscar usuário atualizado do banco de dados para confirmar
-    const updatedUser = await User.findByPk(userId);
-    
-    logger.info('Estado do usuário no banco', {
-      planType: updatedUser.planType,
-      subscriptionStatus: updatedUser.subscriptionStatus
-    });
-
-    logger.info('Pagamento PIX Hotmart simulado com sucesso', {
-      userId,
-      pixId,
-      previousType: user.planType
+    logger.info('Pagamento PIX Hotmart criado com sucesso', {
+      userId: user.id,
+      pixId: result.pixId,
+      transactionId: result.transactionId
     });
 
     res.json({
       success: true,
-      message: 'Pagamento simulado com sucesso! Usuário atualizado para Premium.',
-      user: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        planType: updatedUser.planType,
-        subscriptionStatus: updatedUser.subscriptionStatus
-      }
+      pixId: result.pixId,
+      pixCode: result.pixCode,
+      qrCodeBase64: result.qrCodeBase64,
+      checkoutUrl: result.checkoutUrl,
+      transactionId: result.transactionId,
+      expiresAt: result.expiresAt,
+      amount: (pixData.amount / 100).toFixed(2),
+      isHotmartCheckout: result.isHotmartCheckout,
+      message: 'Pagamento PIX criado com sucesso'
     });
+
   } catch (error) {
-    logger.error('Erro ao simular pagamento PIX Hotmart', {
-      error: error.message,
+    logger.error('Erro interno ao criar pagamento PIX Hotmart', {
       userId: req.user?.id,
-      pixId: req.body?.pixId
+      error: error.message,
+      stack: error.stack
     });
-    
+
     res.status(500).json({
-      error: 'Erro interno do servidor ao simular pagamento'
+      error: 'Erro interno do servidor'
     });
   }
 });
 
-/**
- * @route POST /api/payments/verify-hotmart-pix
- * @desc Verificar status do pagamento PIX na Hotmart
- * @access Private
- */
-router.post('/verify-hotmart-pix', authenticate, async (req, res) => {
-  try {
-    const { pixId } = req.body;
-    const userId = req.user.id;
-    
-    if (!pixId) {
-      return res.status(400).json({
-        error: 'É necessário criar um pagamento primeiro. Clique em "Pagar com PIX" para gerar um código de pagamento.',
-        requiresPaymentCreation: true,
-        suggestion: 'Crie um pagamento antes de tentar confirmar'
-      });
-    }
-
-    // Verificar se o PIX pertence ao usuário
-    if (!pixId.includes(`HOTMART_${userId}_`)) {
-      return res.status(400).json({
-        error: 'Código PIX inválido ou não pertence ao usuário atual. Gere um novo código PIX.',
-        requiresPaymentCreation: true,
-        suggestion: 'Clique em "Pagar com PIX" para gerar um novo código'
-      });
-    }
-
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({
-        error: 'Usuário não encontrado'
-      });
-    }
-
-    // Em ambiente de desenvolvimento, simular verificação
-    if (process.env.APP_ENV === 'development') {
-      // Simular que o pagamento ainda não foi processado
-      return res.json({
-        success: true,
-        paid: false,
-        message: 'Pagamento ainda não foi processado. Para testar, use o botão "Simular Pagamento Aprovado".',
-        pixId,
-        currentSubscription: {
-          type: user.subscription_type,
-          status: user.subscription_status
-        }
-      });
-    }
-
-    // Em produção, aqui você implementaria a consulta real à API da Hotmart
-    // Por enquanto, retornar que não foi pago
-    res.json({
-      success: true,
-      paid: false,
-      message: 'Pagamento ainda não foi processado. Aguarde alguns minutos e tente novamente.',
-      pixId,
-      currentSubscription: {
-        type: user.subscription_type,
-        status: user.subscription_status
-      }
-    });
-
-    logger.info('Verificação de pagamento PIX Hotmart', {
-      userId,
-      pixId,
-      paid: false
-    });
-  } catch (error) {
-    logger.error('Erro ao verificar pagamento PIX Hotmart', {
-      error: error.message,
-      userId: req.user?.id,
-      pixId: req.body?.pixId
-    });
-    
-    res.status(500).json({
-      error: 'Erro interno do servidor ao verificar pagamento'
-    });
-  }
-});
+// Rotas de PIX próprio removidas - agora usando apenas checkout da Hotmart
 
 module.exports = router;
 

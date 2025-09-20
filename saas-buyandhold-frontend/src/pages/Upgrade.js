@@ -813,7 +813,7 @@ const Upgrade = () => {
 
             <div className="space-y-3 mt-6">
               {/* Botões de Simulação (apenas em ambiente de desenvolvimento) */}
-              {process.env.REACT_APP_PROFILE !== 'production' && paymentData && (
+              {(process.env.REACT_APP_ENVIRONMENT !== 'production' && process.env.REACT_APP_PROFILE !== 'production') && paymentData && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <div className="flex items-center mb-2">
                     <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

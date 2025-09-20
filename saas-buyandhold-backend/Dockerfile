@@ -41,7 +41,7 @@ RUN mkdir -p logs && \
 # Remover arquivos desnecessários para reduzir tamanho
 RUN rm -rf \
     .env.example \
-    .env.production \
+    
     README.md \
     .dockerignore \
     Dockerfile \

@@ -1,8 +1,11 @@
 /**
  * Configuração centralizada de ambiente para o backend
  * Detecta automaticamente o ambiente baseado em APP_ENV
- * e carrega as configurações apropriadas
+ * e carrega as configurações do arquivo .env.docker centralizado
  */
+
+// Carregar variáveis de ambiente do arquivo .env.docker centralizado
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env.docker') });
 
 const runtimeEnv = process.env.APP_ENV || 'development';
 const isDevelopment = runtimeEnv === 'development';
@@ -23,28 +26,28 @@ const environments = {
     // Banco de dados
     database: {
       host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      name: process.env.DB_NAME || 'saas-buyandhold',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      name: process.env.DB_NAME || 'saas_buyandhold',
       username: process.env.DB_USER || 'postgres',
       user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres123',
       dialect: 'postgres',
-      ssl: false,
+      ssl: process.env.DB_SSL === 'true',
       pool: {
         max: 5,
         min: 0,
         acquire: 30000,
         idle: 10000
       },
-      timezone: '-03:00'
+      timezone: process.env.TIMEZONE || '-03:00'
     },
     
     // CORS
-    corsOrigins: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    corsOrigins: [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://127.0.0.1:3000'],
     
     // JWT
     jwt: {
-      secret: 'dev_jwt_secret_key_change_in_production',
+      secret: process.env.JWT_SECRET || 'dev_jwt_secret_key_change_in_production',
       expiresIn: '7d'
     },
     
@@ -57,22 +60,30 @@ const environments = {
     // Pagamentos
     payments: {
       pix: {
-        key: 'dev_pix_key',
-        bankCode: '001'
+        key: process.env.PIX_KEY || '28992566255',
+        bankCode: process.env.PIX_BANK_CODE || '001',
+        name: process.env.PIX_NAME || 'Buy and Hold Premium',
+        city: process.env.PIX_CITY || 'SAO PAULO'
       },
       mercadoPago: {
-        accessToken: 'TEST-1234567890123456-123456-abcdef1234567890abcdef1234567890-123456789',
-        publicKey: 'TEST-abcdef12-3456-7890-abcd-ef1234567890'
+        accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || 'TEST-1234567890123456-123456-abcdef1234567890abcdef1234567890-123456789',
+        publicKey: process.env.MERCADO_PAGO_PUBLIC_KEY || 'TEST-abcdef12-3456-7890-abcd-ef1234567890',
+        enabled: process.env.MERCADO_PAGO === 'true'
       },
       hotmart: {
-          clientId: process.env.HOTMART_CLIENT_ID || 'dev_client_id',
-          clientSecret: process.env.HOTMART_CLIENT_SECRET || 'dev_client_secret',
-          basicToken: process.env.HOTMART_BASIC_TOKEN || 'dev_basic_token',
-          productId: process.env.HOTMART_PRODUCT_ID || 'dev_product_id',
-          sandboxMode: true,
-          successUrl: process.env.HOTMART_SUCCESS_URL || 'http://localhost:3000/upgrade/success',
-          cancelUrl: process.env.HOTMART_CANCEL_URL || 'http://localhost:3000/upgrade/cancel',
-          webhookUrl: process.env.HOTMART_WEBHOOK_URL_DEV || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`
+          clientId: process.env.HOTMART_CLIENT_ID || '32a81e15-0824-4626-8fdd-e00bd346044c',
+          clientSecret: process.env.HOTMART_CLIENT_SECRET || '532320c3-39e7-4813-a6cb-8610eaf162fb',
+          basicToken: process.env.HOTMART_BASIC_AUTH || 'Basic MzJhODFlMTUtMDgyNC00NjI2LThmZGQtZTAwYmQzNDYwNDRjOjUzMjMyMGMzLTM5ZTctNDgxMy1hNmNiLTg2MTBlYWYxNjJmYg==',
+          webhookSecret: process.env.HOTMART_WEBHOOK_SECRET || 'uvMuQHHFBq4YAo9ow0JrJx0TlZ6jn222432426',
+          productId: process.env.HOTMART_PRODUCT_ID || '6212414',
+          productUcode: process.env.HOTMART_PRODUCT_UCODE || 'premium-saas',
+          apiUrl: process.env.HOTMART_API_URL || 'https://sandbox.hotmart.com',
+          checkoutUrl: process.env.HOTMART_CHECKOUT_URL || 'https://pay.hotmart.com',
+          sandboxMode: !isProduction,
+          enabled: process.env.HOTMART === 'true',
+          successUrl: process.env.HOTMART_SUCCESS_URL || `${process.env.NGROK_URL || 'http://localhost:3000'}/upgrade/success`,
+          cancelUrl: process.env.HOTMART_CANCEL_URL || `${process.env.NGROK_URL || 'http://localhost:3000'}/upgrade/cancel`,
+          webhookUrl: process.env.HOTMART_WEBHOOK_URL || `${process.env.NGROK_URL || 'http://localhost:5000'}/api/payments/hotmart/webhook`
         }
     },
     
@@ -108,67 +119,75 @@ const environments = {
   
   production: {
     // URLs e domínios
-    frontendUrl: 'https://buyandhold.vargascode.com.br',
-    backendUrl: 'https://buyandhold.vargascode.com.br/api',
-    domain: 'buyandhold.vargascode.com.br',
+    frontendUrl: process.env.FRONTEND_URL_PROD || 'https://buyandhold.vargascode.com.br',
+    backendUrl: process.env.BACKEND_URL_PROD || 'https://buyandhold.vargascode.com.br/api',
+    domain: process.env.REACT_APP_DOMAIN_PROD || 'buyandhold.vargascode.com.br',
     
     // Servidor
-    port: process.env.PORT || 5000,
+    port: process.env.PORT || process.env.BACKEND_PORT || 5000,
     
     // Banco de dados
     database: {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      name: process.env.DB_NAME || 'buyandhold_prod',
-      username: process.env.DB_USER || 'postgres',
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
+      host: process.env.DB_HOST_PROD || process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      name: process.env.DB_NAME_PROD || process.env.DB_NAME || 'buyandhold_prod',
+      username: process.env.DB_USER_PROD || process.env.DB_USER || 'postgres',
+      user: process.env.DB_USER_PROD || process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD_PROD || process.env.DB_PASSWORD || 'postgres',
       dialect: 'postgres',
-      ssl: process.env.DB_SSL === 'false' ? false : true,
+      ssl: process.env.DB_SSL_PROD === 'true' || process.env.DB_SSL === 'true',
       pool: {
         max: 10,
         min: 0,
         acquire: 30000,
         idle: 10000
       },
-      timezone: '-03:00'
+      timezone: process.env.TIMEZONE || '-03:00'
     },
     
     // CORS
-    corsOrigins: ['https://buyandhold.vargascode.com.br'],
+    corsOrigins: [process.env.FRONTEND_URL_PROD || 'https://buyandhold.vargascode.com.br'],
     
     // JWT
     jwt: {
-      secret: process.env.JWT_SECRET || 'change_this_secret_in_production',
+      secret: process.env.JWT_SECRET_PROD || process.env.JWT_SECRET || 'change_this_secret_in_production',
       expiresIn: '7d'
     },
     
     // Logs
     logs: {
-      level: 'info',
-      file: './logs/app-prod.log'
+      level: process.env.LOG_LEVEL || 'info',
+      file: process.env.LOG_FILE || './logs/app-prod.log'
     },
     
     // Pagamentos
     payments: {
       pix: {
-        key: process.env.PIX_KEY || 'production_pix_key',
-        bankCode: process.env.PIX_BANK_CODE || '001'
+        key: process.env.PIX_KEY || '28992566255',
+        bankCode: process.env.PIX_BANK_CODE || '001',
+        name: process.env.PIX_NAME || 'Buy and Hold Premium',
+        city: process.env.PIX_CITY || 'SAO PAULO'
       },
       mercadoPago: {
-        accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || 'PROD-access-token',
-        publicKey: process.env.MERCADO_PAGO_PUBLIC_KEY || 'PROD-public-key'
+        accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN_PROD || process.env.MERCADO_PAGO_ACCESS_TOKEN || 'PROD-access-token',
+        publicKey: process.env.MERCADO_PAGO_PUBLIC_KEY_PROD || process.env.MERCADO_PAGO_PUBLIC_KEY || 'PROD-public-key',
+        enabled: process.env.MERCADO_PAGO === 'true'
       },
       hotmart: {
-        clientId: process.env.HOTMART_CLIENT_ID || 'prod_client_id',
-        clientSecret: process.env.HOTMART_CLIENT_SECRET || 'prod_client_secret',
-        basicToken: process.env.HOTMART_BASIC_TOKEN || 'prod_basic_token',
-        productId: process.env.HOTMART_PRODUCT_ID || 'prod_product_id',
-        sandboxMode: false,
-        successUrl: process.env.HOTMART_SUCCESS_URL || 'https://buyandhold.vargascode.com.br/upgrade/success',
-        cancelUrl: process.env.HOTMART_CANCEL_URL || 'https://buyandhold.vargascode.com.br/upgrade/cancel',
-        webhookUrl: process.env.HOTMART_WEBHOOK_URL_PROD || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook'
-      }
+         clientId: process.env.HOTMART_CLIENT_ID_PROD || process.env.HOTMART_CLIENT_ID || '32a81e15-0824-4626-8fdd-e00bd346044c',
+         clientSecret: process.env.HOTMART_CLIENT_SECRET_PROD || process.env.HOTMART_CLIENT_SECRET || '532320c3-39e7-4813-a6cb-8610eaf162fb',
+         basicToken: process.env.HOTMART_BASIC_TOKEN_PROD || process.env.HOTMART_BASIC_AUTH || 'Basic MzJhODFlMTUtMDgyNC00NjI2LThmZGQtZTAwYmQzNDYwNDRjOjUzMjMyMGMzLTM5ZTctNDgxMy1hNmNiLTg2MTBlYWYxNjJmYg==',
+         webhookSecret: process.env.HOTMART_WEBHOOK_SECRET || 'uvMuQHHFBq4YAo9ow0JrJx0TlZ6jn222432426',
+         productId: process.env.HOTMART_PRODUCT_ID_PROD || process.env.HOTMART_PRODUCT_ID || '6212414',
+         productUcode: process.env.HOTMART_PRODUCT_UCODE || 'premium-saas',
+         apiUrl: process.env.HOTMART_API_URL || 'https://api-sec-vlc.hotmart.com',
+         checkoutUrl: process.env.HOTMART_CHECKOUT_URL || 'https://pay.hotmart.com',
+         sandboxMode: false,
+         enabled: process.env.HOTMART === 'true',
+         successUrl: process.env.HOTMART_SUCCESS_URL_PROD || process.env.HOTMART_SUCCESS_URL || 'https://buyandhold.vargascode.com.br/upgrade/success',
+         cancelUrl: process.env.HOTMART_CANCEL_URL_PROD || process.env.HOTMART_CANCEL_URL || 'https://buyandhold.vargascode.com.br/upgrade/cancel',
+         webhookUrl: process.env.HOTMART_WEBHOOK_URL_PROD || process.env.HOTMART_WEBHOOK_URL || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook'
+       }
     },
     
     // SSL
@@ -257,14 +276,19 @@ const environments = {
         publicKey: 'TEST-abcdef12-3456-7890-abcd-ef1234567890'
       },
       hotmart: {
-        clientId: 'test_client_id',
-        clientSecret: 'test_client_secret',
-        basicToken: 'test_basic_token',
-        sandboxMode: true,
-        successUrl: 'http://localhost:3000/upgrade/success',
-        cancelUrl: 'http://localhost:3000/upgrade/cancel',
-        webhookUrl: 'http://localhost:5000/api/payments/hotmart/webhook'
-      }
+         clientId: 'test_client_id',
+         clientSecret: 'test_client_secret',
+         basicToken: 'test_basic_auth',
+         webhookSecret: 'test_webhook_secret',
+         productId: 'test_product_id',
+         productUcode: 'test_product_ucode',
+         apiUrl: 'https://sandbox.hotmart.com',
+         checkoutUrl: 'https://pay.hotmart.com',
+         sandboxMode: true,
+         successUrl: 'http://localhost:3000/upgrade/success',
+         cancelUrl: 'http://localhost:3000/upgrade/cancel',
+         webhookUrl: 'http://localhost:5000/api/payments/hotmart/webhook'
+       }
     },
     
     // SSL
@@ -306,15 +330,10 @@ const currentEnvironment = isProduction ? 'production' :
 // Configuração ativa
 const config = environments[currentEnvironment];
 
-// Configurar HOTMART_WEBHOOK_URL dinamicamente baseado no APP_ENV
+// Configuração dinâmica do webhook da Hotmart baseada no ambiente
 if (config.payments && config.payments.hotmart) {
-  const appEnv = process.env.APP_ENV || 'development';
-  
-  if (appEnv === 'production') {
-    config.payments.hotmart.webhookUrl = process.env.HOTMART_WEBHOOK_URL_PROD || 'https://buyandhold.vargascode.com.br/api/payments/hotmart/webhook';
-  } else {
-    config.payments.hotmart.webhookUrl = process.env.HOTMART_WEBHOOK_URL_DEV || `${process.env.NGROK_URL}/api/payments/hotmart/webhook`;
-  }
+  // Usa a variável HOTMART_WEBHOOK_URL do .env.docker
+  config.payments.hotmart.webhookUrl = process.env.HOTMART_WEBHOOK_URL || config.payments.hotmart.webhookUrl;
 }
 
 // Enriquecer CORS com FRONTEND_URL, se definido

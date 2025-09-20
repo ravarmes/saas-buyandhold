@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env.docker') });
 
 const { sequelize } = require('./src/models');
 const logger = require('./src/utils/logger');
@@ -99,11 +99,9 @@ async function startServer() {
     await sequelize.authenticate();
     logger.info('Conexão com banco de dados estabelecida com sucesso');
     
-    // Sync database models
-    if (process.env.APP_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      logger.info('Modelos do banco sincronizados (alterados)');
-    }
+    // Database models are managed by migrations
+    // Sync is disabled to avoid conflicts with migrations
+    logger.info('Usando migrations para gerenciar esquema do banco de dados');
     
     app.listen(PORT, () => {
       logger.info(`Servidor rodando na porta ${PORT}`);

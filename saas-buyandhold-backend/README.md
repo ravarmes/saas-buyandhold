@@ -323,7 +323,7 @@ O backend inclui suporte para diferentes ambientes através de scripts automatiz
 | Ambiente | Arquivo | Descrição |
 |----------|---------|----------|
 | Development | `.env` | Configurações locais (padrão) |
-| Production | `.env.production` | Configurações de produção |
+| Production | `../.env.docker` | Configurações de produção |
 | Test | Criado dinamicamente | Configurações de teste |
 
 ### 🔄 Alternando Ambientes

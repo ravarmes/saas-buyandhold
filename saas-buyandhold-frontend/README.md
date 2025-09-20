@@ -361,7 +361,7 @@ O frontend inclui suporte para diferentes ambientes através de scripts automati
 | Ambiente | Arquivo | Descrição |
 |----------|---------|----------|
 | Development | `.env` | Configurações locais (padrão) |
-| Production | `.env.production` | Configurações de produção |
+| Production | `../.env.docker` | Configurações de produção |
 | Test | Criado dinamicamente | Configurações de teste |
 
 ### 🔄 Alternando Ambientes
