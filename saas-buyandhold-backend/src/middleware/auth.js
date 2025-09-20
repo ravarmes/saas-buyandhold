@@ -27,13 +27,30 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // Log forçado para debug
+    process.stderr.write(`USER DEBUG: ${JSON.stringify({id: user.id, email: user.email, name: user.name})}\n`);
+
     // Adicionar informações do usuário à requisição
     req.user = {
+      id: user.id,
       userId: user.id,
       email: user.email,
+      name: user.name,
       planType: user.planType,
       isPremium: user.isPremium()
     };
+
+    // Debug: Log dos dados do usuário no middleware
+    console.error('=== AUTH MIDDLEWARE DEBUG ===');
+    console.error('User from DB:', JSON.stringify({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      planType: user.planType
+    }, null, 2));
+    console.error('req.user after assignment:', JSON.stringify(req.user, null, 2));
+    console.error('Email exists:', !!user.email, 'Name exists:', !!user.name);
+    console.error('=============================');
 
     next();
   } catch (error) {

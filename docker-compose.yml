@@ -1,0 +1,179 @@
+# ================================
+# Docker Compose - SaaS Buy & Hold
+# Orquestração completa da aplicação (Otimizado)
+# ================================
+
+services:
+  # ================================
+  # Banco de Dados PostgreSQL
+  # ================================
+  database:
+    build:
+      context: ./saas-buyandhold-database
+      dockerfile: Dockerfile
+    image: buyandhold-postgres:15-alpine
+    container_name: buyandhold-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saas_buyandhold}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./saas-buyandhold-backend/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - buyandhold-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-saas_buyandhold}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ================================
+  # Backend API Node.js
+  # ================================
+  backend:
+    build:
+      context: ./saas-buyandhold-backend
+      dockerfile: Dockerfile
+    container_name: buyandhold-backend
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      NODE_ENV: ${APP_ENV:-production}
+      APP_ENV: ${APP_ENV:-production}
+      PORT: 5000
+      
+      # Database
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-saas_buyandhold}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      DB_SSL: ${DB_SSL:-false}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_in_production}
+      
+      # Session
+      SESSION_SECRET: ${SESSION_SECRET:-your_super_secret_session_key}
+      
+      # URLs
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:5000}
+      
+      # Hotmart
+      HOTMART_CLIENT_ID: ${HOTMART_CLIENT_ID:-}
+      HOTMART_CLIENT_SECRET: ${HOTMART_CLIENT_SECRET:-}
+      HOTMART_BASIC_AUTH: ${HOTMART_BASIC_AUTH:-}
+      HOTMART_WEBHOOK_SECRET: ${HOTMART_WEBHOOK_SECRET:-}
+      HOTMART_PRODUCT_ID: ${HOTMART_PRODUCT_ID:-}
+      HOTMART_PRODUCT_UCODE: ${HOTMART_PRODUCT_UCODE:-}
+      HOTMART_API_URL: ${HOTMART_API_URL:-}
+      HOTMART_CHECKOUT_URL: ${HOTMART_CHECKOUT_URL:-}
+      HOTMART_SUCCESS_URL: ${HOTMART_SUCCESS_URL:-}
+      HOTMART_CANCEL_URL: ${HOTMART_CANCEL_URL:-}
+      HOTMART_WEBHOOK_URL: ${HOTMART_WEBHOOK_URL:-}
+      CURRENT_BASE_URL: ${CURRENT_BASE_URL:-}
+      
+      # Preços
+      MONTHLY_PRICE_CENTS: ${MONTHLY_PRICE_CENTS:-}
+      ANNUAL_PRICE_CENTS: ${ANNUAL_PRICE_CENTS:-}
+      
+      # Métodos de Pagamento
+      MERCADO_PAGO: ${MERCADO_PAGO:-false}
+      HOTMART: ${HOTMART:-true}
+      
+      # PIX
+      PIX_KEY: ${PIX_KEY:-}
+      PIX_BANK_CODE: ${PIX_BANK_CODE:-}
+      PIX_NAME: ${PIX_NAME:-}
+      PIX_CITY: ${PIX_CITY:-}
+      
+      # Mercado Pago
+      MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:-}
+      MERCADO_PAGO_PUBLIC_KEY: ${MERCADO_PAGO_PUBLIC_KEY:-}
+      USE_REAL_MERCADOPAGO: ${USE_REAL_MERCADOPAGO:-false}
+      
+      # Email
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_TO: ${EMAIL_TO:-}
+      
+      # Ngrok (para webhooks em desenvolvimento)
+      NGROK_URL: ${NGROK_URL:-}
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    networks:
+      - buyandhold-network
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ================================
+  # Frontend React + Nginx
+  # ================================
+  frontend:
+    build:
+      context: ./saas-buyandhold-frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-/api}
+        REACT_APP_DOMAIN: ${REACT_APP_DOMAIN:-localhost}
+        REACT_APP_PROFILE: ${APP_ENV:-production}
+        REACT_APP_ENVIRONMENT: ${APP_ENV:-production}
+        REACT_APP_EMAILJS_SERVICE_ID: ${REACT_APP_EMAILJS_SERVICE_ID:-}
+        REACT_APP_EMAILJS_TEMPLATE_ID: ${REACT_APP_EMAILJS_TEMPLATE_ID:-}
+        REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID: ${REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID:-}
+        REACT_APP_EMAILJS_PUBLIC_KEY: ${REACT_APP_EMAILJS_PUBLIC_KEY:-}
+    container_name: buyandhold-frontend
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - buyandhold-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# ================================
+# Volumes Persistentes
+# ================================
+volumes:
+  postgres_data:
+    driver: local
+    name: buyandhold_postgres_data
+
+# ================================
+# Rede Isolada
+# ================================
+networks:
+  buyandhold-network:
+    driver: bridge
+    name: buyandhold-network

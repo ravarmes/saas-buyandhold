@@ -36,7 +36,7 @@ export const PortfolioProvider = ({ children }) => {
   const loadPortfolios = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/portfolios');
+      const response = await axios.get('/portfolios');
       setPortfolios(response.data);
       
       // Selecionar primeira carteira ou criar uma padrão
@@ -83,7 +83,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      const response = await axios.post('/api/portfolios', {
+      const response = await axios.post('/portfolios', {
         name,
         stocksPercentage,
         reitsPercentage
@@ -114,7 +114,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      const response = await axios.put(`/api/portfolios/${portfolioId}`, data);
+      const response = await axios.put(`/portfolios/${portfolioId}`, data);
       const updatedPortfolio = response.data;
       
       setPortfolios(prev => 
@@ -138,7 +138,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      await axios.delete(`/api/portfolios/${portfolioId}`);
+      await axios.delete(`/portfolios/${portfolioId}`);
       
       setPortfolios(prev => prev.filter(p => p.id !== portfolioId));
       
@@ -190,7 +190,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      const response = await axios.post(`/api/assets/portfolio/${portfolioId}`, assetData);
+      const response = await axios.post(`/assets/portfolio/${portfolioId}`, assetData);
       
       // Recarregar carteira atual
       await loadCurrentPortfolio(portfolioId);
@@ -224,7 +224,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      await axios.put(`/api/assets/${assetId}`, data);
+      await axios.put(`/assets/${assetId}`, data);
       
       // Recarregar carteira atual
       await loadCurrentPortfolio(currentPortfolio.id);
@@ -254,7 +254,7 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      await axios.delete(`/api/assets/${assetId}`);
+      await axios.delete(`/assets/${assetId}`);
       
       // Recarregar carteira atual
       await loadCurrentPortfolio(currentPortfolio.id);
@@ -266,7 +266,7 @@ export const PortfolioProvider = ({ children }) => {
 
   const loadCurrentPortfolio = async (portfolioId) => {
     try {
-      const response = await axios.get(`/api/portfolios/${portfolioId}`);
+      const response = await axios.get(`/portfolios/${portfolioId}`);
       setCurrentPortfolio(response.data);
       
       // Atualizar na lista também

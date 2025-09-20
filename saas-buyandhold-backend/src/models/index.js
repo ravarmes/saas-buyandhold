@@ -1,11 +1,13 @@
-const { Sequelize } = require('sequelize');
+const { Sequelize, DataTypes } = require('sequelize');
 const path = require('path');
 const { database } = require('../../config/environment');
 
 // Verificar se está em ambiente de desenvolvimento
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.APP_ENV === 'development';
 
 // Configuração do banco de dados
+const dialectOptions = database.ssl ? { ssl: { require: true, rejectUnauthorized: false } } : {};
+
 const sequelize = new Sequelize(
   database.name,
   database.username,
@@ -14,9 +16,7 @@ const sequelize = new Sequelize(
     host: database.host,
     port: database.port,
     dialect: database.dialect,
-    dialectOptions: {
-      ssl: database.ssl
-    },
+    dialectOptions,
     pool: database.pool,
     timezone: database.timezone,
     logging: isDevelopment ? console.log : false,
@@ -29,11 +29,13 @@ const sequelize = new Sequelize(
 );
 
 // Import models
-const User = require('./User')(sequelize);
-const Portfolio = require('./Portfolio')(sequelize);
-const Asset = require('./Asset')(sequelize);
-const Subscription = require('./Subscription')(sequelize);
-const Payment = require('./Payment')(sequelize);
+const User = require('./User')(sequelize, DataTypes);
+const Portfolio = require('./Portfolio')(sequelize, DataTypes);
+const Asset = require('./Asset')(sequelize, DataTypes);
+const Subscription = require('./Subscription')(sequelize, DataTypes);
+const Payment = require('./Payment')(sequelize, DataTypes);
+const PaymentTransaction = require('./PaymentTransaction')(sequelize, DataTypes);
+const WebhookEventLog = require('./WebhookEventLog')(sequelize, DataTypes);
 
 // Define associations
 User.hasMany(Portfolio, { foreignKey: 'userId', as: 'portfolios' });
@@ -48,11 +50,20 @@ Subscription.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(Payment, { foreignKey: 'userId', as: 'payments' });
 Payment.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// Associações para PaymentTransaction
+User.hasMany(PaymentTransaction, { foreignKey: 'userId', as: 'paymentTransactions' });
+PaymentTransaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+Subscription.hasMany(PaymentTransaction, { foreignKey: 'subscriptionId', as: 'transactions' });
+PaymentTransaction.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
+
 module.exports = {
   sequelize,
   User,
   Portfolio,
   Asset,
   Subscription,
-  Payment
+  Payment,
+  PaymentTransaction,
+  WebhookEventLog
 };

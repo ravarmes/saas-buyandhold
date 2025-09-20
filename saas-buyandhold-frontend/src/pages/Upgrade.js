@@ -3,13 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import CreditCardForm from '../components/CreditCardForm';
-import { getApiUrl } from '../config/environment';
 
 const Upgrade = () => {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('pix');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('hotmart');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -31,11 +30,10 @@ const Upgrade = () => {
   useEffect(() => {
     const checkEnvironment = async () => {
       try {
-        const response = await axios.get(getApiUrl('/api/payments/mercadopago-config'));
+        const response = await axios.get('/payments/mercadopago-config');
         setIsTestEnvironment(response.data.isTestEnvironment);
       } catch (error) {
         console.error('Erro ao verificar ambiente:', error);
-        // Em caso de erro, assumir produção por segurança
         setIsTestEnvironment(false);
       }
     };
@@ -48,7 +46,7 @@ const Upgrade = () => {
     const fetchSubscription = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(getApiUrl('/api/payments/subscription'), {
+        const response = await axios.get('/payments/subscription', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setSubscription(response.data.subscription);
@@ -76,17 +74,32 @@ const Upgrade = () => {
       const token = localStorage.getItem('token');
       console.log('Token encontrado:', token ? 'Sim' : 'Não');
       
-      // Usar a nova API do Mercado Pago para PIX
-      const endpoint = selectedPaymentMethod === 'pix' 
-        ? getApiUrl('/api/payments/create-mercadopago')
-                : getApiUrl('/api/payments/create');
+      let endpoint, requestData;
+      
+      // Definir endpoint baseado no método de pagamento
+      if (selectedPaymentMethod === 'hotmart') {
+        endpoint = '/payments/create-hotmart-pix';
+        requestData = {
+          amount: 15.00,
+          productName: 'Plano Premium - Buy and Hold'
+        };
+      } else if (selectedPaymentMethod === 'pix') {
+        endpoint = '/payments/create-mercadopago';
+        requestData = {
+          paymentMethod: selectedPaymentMethod,
+          amount: 15.00
+        };
+      } else {
+        endpoint = '/payments/create';
+        requestData = {
+          paymentMethod: selectedPaymentMethod,
+          amount: 15.00
+        };
+      }
       
       const response = await axios.post(
         endpoint,
-        {
-          paymentMethod: selectedPaymentMethod,
-          amount: 0.05
-        },
+        requestData,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -94,8 +107,28 @@ const Upgrade = () => {
 
       console.log('Resposta da API:', response.data);
       
-      // Estrutura de dados diferente para Mercado Pago
-      if (selectedPaymentMethod === 'pix' && response.data.payment) {
+      // Estrutura de dados diferente para cada método
+      if (selectedPaymentMethod === 'hotmart') {
+        // Para Hotmart PIX, mostrar modal com código PIX
+        if (response.data.success && response.data.pixCode) {
+          setPaymentData({
+            id: response.data.pixId,
+            pixId: response.data.pixId,
+            paymentData: {
+              pixKey: response.data.pixCode,
+              qrCode: response.data.pixCode,
+              qrCodeBase64: response.data.qrCodeBase64,
+              instructions: 'Escaneie o QR Code ou copie o código PIX para realizar o pagamento via Hotmart'
+            },
+            hotmartPix: true
+          });
+          setShowPaymentModal(true);
+          setSuccess('Código PIX gerado com sucesso!');
+        } else {
+          console.error('Código PIX não foi gerado:', response.data);
+          setError('Erro: Código PIX não foi gerado');
+        }
+      } else if (selectedPaymentMethod === 'pix' && response.data.payment) {
         setPaymentData({
           ...response.data.subscription,
           paymentData: {
@@ -106,12 +139,15 @@ const Upgrade = () => {
           },
           mercadoPagoPayment: response.data.payment
         });
+        setShowPaymentModal(true);
       } else {
         setPaymentData(response.data.subscription);
+        setShowPaymentModal(true);
       }
       
-      setShowPaymentModal(true);
-      setSuccess('Pagamento criado com sucesso!');
+      if (selectedPaymentMethod !== 'hotmart') {
+        setSuccess('Pagamento criado com sucesso!');
+      }
     } catch (error) {
       console.error('Erro ao criar pagamento:', error);
       console.error('Resposta do erro:', error.response?.data);
@@ -138,7 +174,7 @@ const Upgrade = () => {
         : paymentData.paymentId;
       
       const response = await axios.post(
-        getApiUrl('/api/payments/simulate-payment'),
+        '/payments/simulate-payment',
         { paymentId },
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -165,6 +201,156 @@ const Upgrade = () => {
     } catch (error) {
       console.error('Erro ao simular pagamento:', error);
       setError(error.response?.data?.error || 'Erro ao simular pagamento');
+    } finally {
+      setLoading(false);
+      setIsConfirming(false);
+    }
+  };
+
+  const handleSimulateGenericPayment = async () => {
+    if (!paymentData || isConfirming) return;
+
+    setIsConfirming(true);
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Usar ID genérico para simulação de sucesso
+      const paymentId = 'test_generic_success';
+      
+      const response = await axios.post(
+        '/payments/simulate-payment',
+        { paymentId },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        setSuccess('Pagamento simulado como aprovado! Bem-vindo ao plano Premium!');
+        setShowPaymentModal(false);
+        
+        // Atualizar dados do usuário
+        const refreshSuccess = await refreshUser();
+        
+        if (refreshSuccess) {
+          // Redirecionar para dashboard após 2 segundos
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          // Se falhou ao atualizar, sugerir logout/login
+          setSuccess('Pagamento simulado! Por favor, faça logout e login novamente para ver as mudanças.');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao simular pagamento:', error);
+      setError(error.response?.data?.error || 'Erro ao simular pagamento');
+    } finally {
+      setLoading(false);
+      setIsConfirming(false);
+    }
+  };
+
+  const handleSimulateHotmartPayment = async (type) => {
+    if (!paymentData || isConfirming) return;
+
+    setIsConfirming(true);
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      const endpoint = type === 'success' 
+        ? '/payments/simulate-hotmart-success'
+        : '/payments/simulate-hotmart-failure';
+      
+      const response = await axios.post(
+        endpoint,
+        { 
+          linkId: paymentData.linkId || paymentData.id || `hotmart_${Date.now()}`
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        if (type === 'success') {
+          setSuccess('Pagamento Hotmart simulado como aprovado! Bem-vindo ao plano Premium!');
+          setShowPaymentModal(false);
+          
+          // Atualizar dados do usuário
+          const refreshSuccess = await refreshUser();
+          
+          if (refreshSuccess) {
+            // Redirecionar para dashboard após 2 segundos
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 2000);
+          } else {
+            // Se falhou ao atualizar, sugerir logout/login
+            setSuccess('Pagamento simulado! Por favor, faça logout e login novamente para ver as mudanças.');
+          }
+        } else {
+          setError('Pagamento Hotmart simulado como cancelado/rejeitado.');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao simular pagamento Hotmart:', error);
+      setError(error.response?.data?.error || 'Erro ao simular pagamento Hotmart');
+    } finally {
+      setLoading(false);
+      setIsConfirming(false);
+    }
+  };
+
+  const handleSimulateHotmartPix = async () => {
+    if (!paymentData || isConfirming) return;
+
+    setIsConfirming(true);
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await axios.post(
+        '/payments/simulate-hotmart-pix',
+        { 
+          pixId: paymentData.pixId
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        setSuccess('Pagamento PIX Hotmart simulado como aprovado! Bem-vindo ao plano Premium!');
+        setShowPaymentModal(false);
+        
+        // Atualizar dados do usuário
+        const refreshSuccess = await refreshUser();
+        
+        if (refreshSuccess) {
+          // Redirecionar para dashboard após 2 segundos
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 2000);
+        } else {
+          // Se falhou ao atualizar, sugerir logout/login
+          setSuccess('Pagamento simulado! Por favor, faça logout e login novamente para ver as mudanças.');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao simular pagamento PIX Hotmart:', error);
+      setError(error.response?.data?.error || 'Erro ao simular pagamento PIX Hotmart');
     } finally {
       setLoading(false);
       setIsConfirming(false);
@@ -201,20 +387,30 @@ const Upgrade = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // Usar a nova API do Mercado Pago se for pagamento PIX com Mercado Pago
-      const endpoint = paymentData.mercadoPagoPayment 
-        ? getApiUrl('/api/payments/verify-mercadopago')
-                : getApiUrl('/api/payments/verify-pix');
+      // Definir endpoint baseado no tipo de pagamento
+      let endpoint, requestData;
       
-      const requestData = paymentData.mercadoPagoPayment 
-        ? {
-            subscriptionId: paymentData.id,
-            paymentId: paymentData.mercadoPagoPayment.id
-          }
-        : {
-            subscriptionId: paymentData.id,
-            paymentId: paymentData.paymentId
-          };
+      if (paymentData.hotmartPix) {
+        // PIX da Hotmart
+        endpoint = '/payments/verify-hotmart-pix';
+        requestData = {
+          pixId: paymentData.pixId
+        };
+      } else if (paymentData.mercadoPagoPayment) {
+        // PIX do Mercado Pago
+        endpoint = '/payments/verify-mercadopago';
+        requestData = {
+          subscriptionId: paymentData.id,
+          paymentId: paymentData.mercadoPagoPayment.id
+        };
+      } else {
+        // PIX padrão
+        endpoint = '/payments/verify-pix';
+        requestData = {
+          subscriptionId: paymentData.id,
+          paymentId: paymentData.paymentId
+        };
+      }
       
       const response = await axios.post(
         endpoint,
@@ -224,10 +420,16 @@ const Upgrade = () => {
         }
       );
 
-      // Verificar se o pagamento foi aprovado
-      const isPaymentApproved = paymentData.mercadoPagoPayment 
-        ? response.data.payment?.isApproved
-        : response.data.paymentVerified;
+      // Verificar se o pagamento foi aprovado baseado no tipo
+      let isPaymentApproved;
+      
+      if (paymentData.hotmartPix) {
+        isPaymentApproved = response.data.success && response.data.paid;
+      } else if (paymentData.mercadoPagoPayment) {
+        isPaymentApproved = response.data.payment?.isApproved;
+      } else {
+        isPaymentApproved = response.data.paymentVerified;
+      }
 
       if (isPaymentApproved) {
         setSuccess('Pagamento PIX confirmado! Bem-vindo ao plano Premium!');
@@ -283,7 +485,7 @@ const Upgrade = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        getApiUrl('/api/payments/confirm'),
+        '/payments/confirm',
         {
           subscriptionId: paymentData.id,
           paymentId: paymentData.paymentId
@@ -350,7 +552,7 @@ const Upgrade = () => {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Plano Premium</h2>
             <div className="text-4xl font-bold text-blue-600 mb-4">
-              R$ 0,05
+              R$ 15,00
               <span className="text-lg font-normal text-gray-500">/mês</span>
             </div>
           </div>
@@ -401,100 +603,85 @@ const Upgrade = () => {
             </div>
           </div>
 
-          {/* Métodos de Pagamento */}
+          {/* Seleção de Método de Pagamento */}
           <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Escolha o método de pagamento:</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setSelectedPaymentMethod('pix')}
-                className={`p-4 border-2 rounded-lg transition-colors ${
-                  selectedPaymentMethod === 'pix'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-center mb-2">
-                  <svg className="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Escolha o método de pagamento:</h3>
+            
+            {/* PIX Hotmart - Único método disponível */}
+            <div 
+              className={`border rounded-lg p-4 mb-3 cursor-pointer transition-colors ${
+                selectedPaymentMethod === 'hotmart' 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedPaymentMethod('hotmart')}
+            >
+              <div className="flex items-center">
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="hotmart"
+                  checked={selectedPaymentMethod === 'hotmart'}
+                  onChange={() => setSelectedPaymentMethod('hotmart')}
+                  className="mr-3"
+                />
+                <svg className="w-6 h-6 text-blue-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <div>
+                  <h4 className="font-semibold text-gray-800">PIX (Hotmart)</h4>
+                  <p className="text-sm text-gray-600">Pagamento instantâneo e seguro via PIX</p>
                 </div>
-                <div className="font-medium text-gray-900">PIX</div>
-                <div className="text-sm text-gray-500">Pagamento instantâneo</div>
-              </button>
-              
-              <button
-                onClick={() => setSelectedPaymentMethod('credit_card')}
-                className={`p-4 border-2 rounded-lg transition-colors ${
-                  selectedPaymentMethod === 'credit_card'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-center mb-2">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                </div>
-                <div className="font-medium text-gray-900">Cartão de Crédito</div>
-                <div className="text-sm text-gray-500">Parcelamento disponível</div>
-              </button>
+              </div>
             </div>
           </div>
 
-          {/* Formulário de Pagamento */}
-          {selectedPaymentMethod === 'credit_card' ? (
-            <CreditCardForm
-              onPaymentSuccess={handleCreditCardSuccess}
-              onError={setError}
-              amount={0.05}
-            />
-          ) : (
-            /* Botão de Upgrade para PIX */
-            <button
+          {/* Botão de Upgrade */}
+          <button
               onClick={handleCreatePayment}
               disabled={loading}
               className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Processando...' : 'Fazer Upgrade Premium'}
+              {loading ? 'Processando...' : 'Pagar com PIX'}
             </button>
-          )}
         </div>
 
         {/* Mensagens */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-red-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <p className="text-red-700">{error}</p>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-red-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-red-700">{error}</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <div className="flex">
-              <svg className="w-5 h-5 text-green-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <p className="text-green-700">{success}</p>
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <div className="flex">
+                <svg className="w-5 h-5 text-green-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-green-700">{success}</p>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Modal de Pagamento */}
+        {/* Modal de Pagamento */}
       {showPaymentModal && paymentData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
             <div className="text-center mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {selectedPaymentMethod === 'pix' ? 'Pagamento via PIX' : 'Pagamento via Cartão'}
+                Pagamento via PIX
               </h3>
-              <p className="text-gray-600">Valor: R$ {paymentData.amount}</p>
+              <p className="text-gray-600">Valor: R$ {paymentData.amount || '15,00'}</p>
             </div>
 
+            {/* Modal para PIX Mercado Pago */}
             {selectedPaymentMethod === 'pix' && paymentData.paymentData && (
               <div className="space-y-4">
                 {/* QR Code Base64 se disponível */}
@@ -544,6 +731,70 @@ const Upgrade = () => {
               </div>
             )}
 
+            {/* Modal para PIX Hotmart */}
+            {selectedPaymentMethod === 'hotmart' && paymentData.hotmartPix && paymentData.paymentData && (
+              <div className="space-y-4">
+                {/* QR Code Base64 se disponível */}
+                {paymentData.paymentData.qrCodeBase64 ? (
+                  <div className="bg-gray-50 p-4 rounded-lg text-center">
+                    <p className="text-sm text-gray-600 mb-2">QR Code PIX:</p>
+                    <div className="flex justify-center mb-2">
+                      <img 
+                        src={paymentData.paymentData.qrCodeBase64}
+                        alt="QR Code PIX Hotmart"
+                        className="border rounded bg-white p-2"
+                        style={{ maxWidth: '200px', maxHeight: '200px' }}
+                        onError={(e) => {
+                          console.error('Erro ao carregar QR Code:', e);
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'block';
+                        }}
+                      />
+                      <div className="text-sm text-red-600 hidden">
+                        ❌ Erro ao carregar QR Code. Use o código PIX abaixo.
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">Escaneie com o app do seu banco</p>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 p-4 rounded-lg text-center border border-yellow-200">
+                    <p className="text-sm text-yellow-700 mb-2">⚠️ QR Code não disponível</p>
+                    <p className="text-xs text-yellow-600">Use o código PIX abaixo para realizar o pagamento</p>
+                  </div>
+                )}
+                
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Código PIX (Copia e Cola):</p>
+                  <div className="bg-white p-3 rounded border">
+                    <div className="flex items-start justify-between">
+                      <span className="text-xs font-mono break-all pr-2 leading-relaxed">{paymentData.paymentData.pixKey}</span>
+                      <button
+                        onClick={() => copyToClipboard(paymentData.paymentData.pixKey)}
+                        className="text-blue-600 hover:text-blue-700 text-sm ml-2 flex-shrink-0 px-2 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        📋 Copiar
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Cole este código no seu app bancário na opção "PIX Copia e Cola"</p>
+                </div>
+                
+                {/* Informações adicionais da Hotmart */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="text-sm space-y-1">
+                    <p><strong>PIX ID:</strong> {paymentData.pixId}</p>
+                    <p><strong>Valor:</strong> R$ 15,00</p>
+                    <p><strong>Status:</strong> Aguardando pagamento</p>
+                    <p><strong>Expira em:</strong> 30 minutos</p>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-600 text-center">
+                  {paymentData.paymentData.instructions}
+                </p>
+              </div>
+            )}
+
             {selectedPaymentMethod === 'credit_card' && paymentData.paymentData && (
               <div className="space-y-4">
                 <p className="text-sm text-gray-600 text-center">
@@ -561,25 +812,37 @@ const Upgrade = () => {
             )}
 
             <div className="space-y-3 mt-6">
-              {/* Botão de Simulação (apenas para PIX em ambiente de teste) */}
-              {selectedPaymentMethod === 'pix' && isTestEnvironment && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              {/* Botões de Simulação (apenas em ambiente de desenvolvimento) */}
+              {(process.env.REACT_APP_ENVIRONMENT !== 'production' && process.env.REACT_APP_PROFILE !== 'production') && paymentData && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                   <div className="flex items-center mb-2">
-                    <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className="text-sm font-medium text-yellow-800">Ambiente de Teste</span>
+                    <span className="text-sm font-medium text-green-800">Ambiente de Desenvolvimento</span>
                   </div>
-                  <p className="text-xs text-yellow-700 mb-3">
-                    Para facilitar os testes, você pode simular a aprovação do pagamento PIX:
+                  <p className="text-xs text-green-700 mb-3">
+                    Simule diferentes cenários de pagamento para testes:
                   </p>
-                  <button
-                    onClick={handleSimulatePayment}
-                    disabled={loading || isConfirming}
-                    className="w-full bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                  >
-                    {(loading || isConfirming) ? 'Simulando...' : '🎯 Simular Pagamento Aprovado'}
-                  </button>
+                  <div className="space-y-2">
+                    {paymentData.hotmartPix ? (
+                      <button
+                        onClick={handleSimulateHotmartPix}
+                        disabled={loading || isConfirming}
+                        className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      >
+                        {(loading || isConfirming) ? 'Simulando...' : '✅ Simular Pagamento Aprovado'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSimulateGenericPayment}
+                        disabled={loading || isConfirming}
+                        className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      >
+                        {(loading || isConfirming) ? 'Simulando...' : '✅ Simular Pagamento Aprovado'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
               
@@ -597,6 +860,14 @@ const Upgrade = () => {
                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {(loading || isConfirming) ? 'Verificando...' : 'Verificar Pagamento'}
+                  </button>
+                ) : selectedPaymentMethod === 'hotmart' ? (
+                  <button
+                    onClick={handleVerifyPayment}
+                    disabled={loading || isConfirming}
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {(loading || isConfirming) ? 'Verificando...' : 'Confirmar Pagamento'}
                   </button>
                 ) : (
                   <button

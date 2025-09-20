@@ -111,7 +111,7 @@ router.post('/send', authenticate, validateContactForm, async (req, res) => {
   } catch (error) {
     console.error('Erro ao enviar mensagem de contato:', error);
     res.status(500).json({
-      error: 'Erro ao enviar mensagem. Tente novamente ou entre em contato diretamente pelo email ajuda.brugnara@gmail.com'
+      error: 'Erro ao enviar mensagem. Tente novamente ou entre em contato diretamente pelo email vargascodemail@gmail.com'
     });
   }
 });
@@ -132,7 +132,7 @@ router.post('/bug-report', authenticate, validateBugReport, async (req, res) => 
   } catch (error) {
     console.error('Erro ao enviar relatório de bug:', error);
     res.status(500).json({
-      error: 'Erro ao enviar relatório. Tente novamente ou entre em contato diretamente pelo email ajuda.brugnara@gmail.com'
+      error: 'Erro ao enviar relatório. Tente novamente ou entre em contato diretamente pelo email vargascodemail@gmail.com'
     });
   }
 });
@@ -153,7 +153,7 @@ router.post('/feature-suggestion', authenticate, validateFeatureSuggestion, asyn
   } catch (error) {
     console.error('Erro ao enviar sugestão:', error);
     res.status(500).json({
-      error: 'Erro ao enviar sugestão. Tente novamente ou entre em contato diretamente pelo email ajuda.brugnara@gmail.com'
+      error: 'Erro ao enviar sugestão. Tente novamente ou entre em contato diretamente pelo email vargascodemail@gmail.com'
     });
   }
 });
