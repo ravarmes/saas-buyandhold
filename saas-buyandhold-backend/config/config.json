@@ -1,0 +1,48 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "postgres123",
+    "database": "saas_buyandhold",
+    "host": "database",
+    "port": 5432,
+    "dialect": "postgres",
+    "timezone": "-03:00",
+    "pool": {
+      "max": 5,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    }
+  },
+  "test": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "buyandhold_test",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "timezone": "-03:00",
+    "pool": {
+      "max": 5,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    }
+  },
+  "production": {
+    "username": "postgres",
+    "password": "postgres",
+    "database": "buyandhold_prod",
+    "host": "localhost",
+    "port": 5432,
+    "dialect": "postgres",
+    "timezone": "-03:00",
+    "ssl": true,
+    "pool": {
+      "max": 10,
+      "min": 0,
+      "acquire": 30000,
+      "idle": 10000
+    }
+  }
+}

@@ -63,7 +63,7 @@ const Calculator = () => {
         requestData.portfolioData = currentPortfolio;
       }
 
-      const response = await axios.post('/api/investments/calculate', requestData);
+      const response = await axios.post('/investments/calculate', requestData);
 
       const { suggestions: newSuggestions, summary, validation, currentDistribution, portfolioValue } = response.data;
       
@@ -109,7 +109,7 @@ const Calculator = () => {
     setError('');
 
     try {
-      await axios.post('/api/investments/execute', {
+      await axios.post('/investments/execute', {
         portfolioId: currentPortfolio.id,
         selectedSuggestions: selectedSuggestionObjects
       });

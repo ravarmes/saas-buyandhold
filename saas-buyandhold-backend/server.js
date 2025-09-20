@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env.docker') });
 
 const { sequelize } = require('./src/models');
 const logger = require('./src/utils/logger');
@@ -54,7 +55,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.APP_ENV || 'development'
   });
 });
 
@@ -78,7 +79,7 @@ app.use((err, req, res, next) => {
   
   res.status(500).json({
     error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'production' ? 'Algo deu errado' : err.message
+    message: process.env.APP_ENV === 'production' ? 'Algo deu errado' : err.message
   });
 });
 
@@ -90,7 +91,7 @@ app.use('*', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   try {
@@ -98,15 +99,13 @@ async function startServer() {
     await sequelize.authenticate();
     logger.info('Conexão com banco de dados estabelecida com sucesso');
     
-    // Sync database models
-    if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      logger.info('Modelos do banco sincronizados (alterados)');
-    }
+    // Database models are managed by migrations
+    // Sync is disabled to avoid conflicts with migrations
+    logger.info('Usando migrations para gerenciar esquema do banco de dados');
     
     app.listen(PORT, () => {
       logger.info(`Servidor rodando na porta ${PORT}`);
-      logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Ambiente: ${process.env.APP_ENV || 'development'}`);
       logger.info(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     });
   } catch (error) {

@@ -54,7 +54,7 @@ const Profile = () => {
     setError('');
 
     try {
-      await axios.delete('/api/auth/deactivate-account');
+      await axios.delete('/auth/deactivate-account');
       
       // Fazer logout após desativar a conta
       logout();

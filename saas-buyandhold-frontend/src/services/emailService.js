@@ -2,65 +2,83 @@ import emailjs from '@emailjs/browser';
 
 class EmailService {
   constructor() {
-    console.log('Todas as variáveis de ambiente:', process.env);
-    
+    // Remover log de todas as variáveis para não poluir o console em produção
+    // console.log('Todas as variáveis de ambiente:', process.env);
+
     this.serviceId = process.env.REACT_APP_EMAILJS_SERVICE_ID;
     this.templateId = process.env.REACT_APP_EMAILJS_TEMPLATE_ID;
     this.passwordTemplateId = process.env.REACT_APP_EMAILJS_PASSWORD_TEMPLATE_ID;
     this.publicKey = process.env.REACT_APP_EMAILJS_PUBLIC_KEY;
     this.initialized = false;
-    
-    // Debug logs detalhados
-    console.log('EmailJS Config Detalhado:', {
-      serviceId: this.serviceId,
-      serviceIdType: typeof this.serviceId,
-      templateId: this.templateId,
-      templateIdType: typeof this.templateId,
-      passwordTemplateId: this.passwordTemplateId,
-      passwordTemplateIdType: typeof this.passwordTemplateId,
-      publicKey: this.publicKey,
-      publicKeyType: typeof this.publicKey,
-      publicKeySet: this.publicKey ? 'SET' : 'NOT SET'
-    });
-  }
 
-  initEmailJS() {
-    console.log('Tentando inicializar EmailJS:', {
-      initialized: this.initialized,
-      publicKey: this.publicKey,
-      hasPublicKey: !!this.publicKey
-    });
-    
-    if (!this.initialized && this.publicKey) {
-      console.log('Inicializando EmailJS com chave:', this.publicKey);
-      emailjs.init(this.publicKey);
-      this.initialized = true;
-      console.log('EmailJS inicializado com sucesso');
-    } else {
-      console.error('Falha na inicialização do EmailJS:', {
-        alreadyInitialized: this.initialized,
-        missingPublicKey: !this.publicKey
+    // Logs somente em desenvolvimento
+    if (process.env.REACT_APP_PROFILE !== 'production') {
+      console.log('EmailJS Config Detalhado:', {
+        serviceId: this.serviceId,
+        templateId: this.templateId,
+        passwordTemplateId: this.passwordTemplateId,
+        publicKeySet: this.publicKey ? 'SET' : 'NOT SET'
       });
     }
   }
 
+  hasRequiredConfig() {
+    return !!(this.serviceId && this.templateId && this.publicKey);
+  }
+
+  initEmailJS() {
+    // Evitar tentativa de inicializar se não houver configuração
+    if (!this.publicKey) {
+      if (process.env.REACT_APP_PROFILE !== 'production') {
+        console.warn('[EmailService] Public key ausente. EmailJS não será inicializado.');
+      }
+      return false;
+    }
+
+    if (!this.initialized) {
+      try {
+        emailjs.init(this.publicKey);
+        this.initialized = true;
+        if (process.env.REACT_APP_PROFILE !== 'production') {
+          console.log('[EmailService] EmailJS inicializado com sucesso');
+        }
+      } catch (e) {
+        console.error('[EmailService] Falha ao inicializar EmailJS:', e);
+        this.initialized = false;
+        return false;
+      }
+    }
+    return this.initialized;
+  }
+
   async sendContactEmail(formData) {
-    this.initEmailJS();
-    
+    // Se faltar configuração, retornar fallback amigável
+    if (!this.hasRequiredConfig()) {
+      return {
+        success: false,
+        message:
+          'Serviço de email não está configurado. Por favor, configure as variáveis REACT_APP_EMAILJS_* e tente novamente.'
+      };
+    }
+
+    if (!this.initEmailJS()) {
+      return {
+        success: false,
+        message: 'Não foi possível inicializar o serviço de email. Verifique a chave pública.'
+      };
+    }
+
     try {
       const templateParams = {
         from_name: formData.name,
         from_email: formData.email,
         subject: formData.subject,
         message: formData.message,
-        to_email: 'ajuda.brugnara@gmail.com'
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
-      const response = await emailjs.send(
-        this.serviceId,
-        this.templateId,
-        templateParams
-      );
+      const response = await emailjs.send(this.serviceId, this.templateId, templateParams);
 
       return {
         success: true,
@@ -78,31 +96,31 @@ class EmailService {
   }
 
   async sendPasswordResetEmail(email, resetLink) {
-    this.initEmailJS();
-    
-    console.log('=== DEBUG RESET PASSWORD EMAIL ===');
-    console.log('Email:', email);
-    console.log('Reset Link:', resetLink);
-    console.log('Service ID:', this.serviceId);
-    console.log('Password Template ID:', this.passwordTemplateId);
-    console.log('Public Key:', this.publicKey);
-    
+    // Validar configuração necessária: serviceId, passwordTemplateId, publicKey
+    if (!(this.serviceId && this.passwordTemplateId && this.publicKey)) {
+      return {
+        success: false,
+        message:
+          'Serviço de email para reset de senha não está configurado. Defina REACT_APP_EMAILJS_*.'
+      };
+    }
+
+    if (!this.initEmailJS()) {
+      return {
+        success: false,
+        message: 'Não foi possível inicializar o serviço de email. Verifique a chave pública.'
+      };
+    }
+
     try {
       const templateParams = {
         to_email: email,
         reset_link: resetLink,
-        from_name: 'SaaS Buy&Hold'
+        from_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
-      console.log('Template Params:', templateParams);
-
-      const response = await emailjs.send(
-        this.serviceId,
-        this.passwordTemplateId, // Template específico para reset de senha
-        templateParams
-      );
-
-      console.log('EmailJS Response:', response);
+      const response = await emailjs.send(this.serviceId, this.passwordTemplateId, templateParams);
 
       return {
         success: true,
@@ -118,10 +136,22 @@ class EmailService {
       };
     }
   }
-
   async sendBugReport(formData) {
-    this.initEmailJS();
-    
+    if (!this.hasRequiredConfig()) {
+      return {
+        success: false,
+        message:
+          'Serviço de email não está configurado. Por favor, configure as variáveis REACT_APP_EMAILJS_* e tente novamente.'
+      };
+    }
+
+    if (!this.initEmailJS()) {
+      return {
+        success: false,
+        message: 'Não foi possível inicializar o serviço de email. Verifique a chave pública.'
+      };
+    }
+
     try {
       const severityEmoji = {
         low: '🟢',
@@ -133,16 +163,13 @@ class EmailService {
       const templateParams = {
         from_name: formData.name,
         from_email: formData.email,
-        subject: `${severityEmoji[formData.severity]} Bug Report - ${formData.title}`,
-        message: `TIPO: ${formData.bugType}\nSEVERIDADE: ${formData.severity.toUpperCase()}\n\nDESCRIÇÃO:\n${formData.description}\n\nPASSOS PARA REPRODUZIR:\n${formData.stepsToReproduce}\n\nCOMPORTAMENTO ESPERADO:\n${formData.expectedBehavior}\n\nCOMPORTAMENTO ATUAL:\n${formData.actualBehavior}\n\nNAVEGADOR: ${formData.browser}\nDISPOSITIVO: ${formData.device}`,
-        to_email: 'ajuda.brugnara@gmail.com'
+        subject: `${severityEmoji[formData.severity] || '🐞'} Bug Report - ${formData.title}`,
+        message: `TIPO: ${formData.bugType}\nSEVERIDADE: ${formData.severity?.toUpperCase()}\n\nDESCRIÇÃO:\n${formData.description}\n\nPASSOS PARA REPRODUZIR:\n${formData.stepsToReproduce}\n\nCOMPORTAMENTO ESPERADO:\n${formData.expectedBehavior}\n\nCOMPORTAMENTO ATUAL:\n${formData.actualBehavior}\n\nNAVEGADOR: ${formData.browser}\nDISPOSITIVO: ${formData.device}`,
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
-      const response = await emailjs.send(
-        this.serviceId,
-        this.templateId,
-        templateParams
-      );
+      const response = await emailjs.send(this.serviceId, this.templateId, templateParams);
 
       return {
         success: true,
@@ -160,8 +187,21 @@ class EmailService {
   }
 
   async sendFeatureSuggestion(formData) {
-    this.initEmailJS();
-    
+    if (!this.hasRequiredConfig()) {
+      return {
+        success: false,
+        message:
+          'Serviço de email não está configurado. Por favor, configure as variáveis REACT_APP_EMAILJS_* e tente novamente.'
+      };
+    }
+
+    if (!this.initEmailJS()) {
+      return {
+        success: false,
+        message: 'Não foi possível inicializar o serviço de email. Verifique a chave pública.'
+      };
+    }
+
     try {
       const priorityEmoji = {
         low: '🟢',
@@ -172,16 +212,13 @@ class EmailService {
       const templateParams = {
         from_name: formData.name,
         from_email: formData.email,
-        subject: `${priorityEmoji[formData.priority]} Sugestão de Funcionalidade - ${formData.title}`,
-        message: `CATEGORIA: ${formData.category}\nPRIORIDADE: ${formData.priority.toUpperCase()}\nUSUÁRIOS ALVO: ${formData.targetUsers}\n\nDESCRIÇÃO:\n${formData.description}\n\nCASO DE USO:\n${formData.useCase}\n\nBENEFÍCIOS:\n${formData.benefits}`,
-        to_email: 'ajuda.brugnara@gmail.com'
+        subject: `${priorityEmoji[formData.priority] || '💡'} Sugestão de Funcionalidade - ${formData.title}`,
+        message: `CATEGORIA: ${formData.category}\nPRIORIDADE: ${formData.priority?.toUpperCase()}\nUSUÁRIOS ALVO: ${formData.targetUsers}\n\nDESCRIÇÃO:\n${formData.description}\n\nCASO DE USO:\n${formData.useCase}\n\nBENEFÍCIOS:\n${formData.benefits}`,
+        to_email: process.env.REACT_APP_EMAIL_TO || 'vargascodemail@gmail.com',
+        app_name: process.env.REACT_APP_APP_NAME || 'SaaS Buy&Hold'
       };
 
-      const response = await emailjs.send(
-        this.serviceId,
-        this.templateId,
-        templateParams
-      );
+      const response = await emailjs.send(this.serviceId, this.templateId, templateParams);
 
       return {
         success: true,
@@ -199,5 +236,4 @@ class EmailService {
   }
 }
 
-const emailService = new EmailService();
-export default emailService;
+export default new EmailService();

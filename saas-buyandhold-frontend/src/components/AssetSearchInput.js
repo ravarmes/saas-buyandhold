@@ -23,7 +23,7 @@ const AssetSearchInput = ({ onAssetSelected, initialTicker = '' }) => {
 
     setLoading(true);
     try {
-      const response = await axios.get(`/api/asset-data/search/${searchTicker.toUpperCase()}`);
+      const response = await axios.get(`/asset-data/search/${searchTicker.toUpperCase()}`);
       
       if (response.data.success) {
         const assetData = response.data.data;

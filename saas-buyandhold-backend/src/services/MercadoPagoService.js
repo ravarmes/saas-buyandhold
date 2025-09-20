@@ -16,9 +16,9 @@ class MercadoPagoService {
     this.preference = new Preference(this.client);
     
     // Log de inicialização
-    const environment = process.env.NODE_ENV || 'development';
+    const environment = process.env.APP_ENV || 'development';
     const mode = payments.mercadoPago.accessToken.startsWith('TEST-') ? 'TESTE (sandbox)' : 'PRODUÇÃO';
-    logger.info(`MercadoPago inicializado em modo: ${mode} - NODE_ENV: ${environment}`);
+    logger.info(`MercadoPago inicializado em modo: ${mode} - APP_ENV: ${environment}`);
   }
 
   /**
@@ -59,7 +59,7 @@ class MercadoPagoService {
           ...(cpf && { identification: { type: 'CPF', number: cpf } })
         },
         external_reference: externalReference,
-        notification_url: `${process.env.BACKEND_URL || 'http://localhost:5001'}/api/payments/webhook`,
+        notification_url: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/webhook/mercadopago`,
         date_of_expiration: expirationDate.toISOString()
       };
       
@@ -130,7 +130,7 @@ class MercadoPagoService {
           ...(cpf && { identification: { type: 'CPF', number: cpf } })
         },
         external_reference: externalReference,
-        notification_url: `${process.env.BACKEND_URL || 'http://localhost:5001'}/api/payments/webhook`
+        notification_url: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/webhook/mercadopago`
       };
       
       logger.info('Criando pagamento por cartão no Mercado Pago', { paymentRequest });

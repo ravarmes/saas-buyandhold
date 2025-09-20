@@ -35,12 +35,12 @@ export const AuthProvider = ({ children }) => {
     const loadUser = async () => {
       if (token) {
         try {
-          const response = await axios.get('/api/auth/profile');
+          const response = await axios.get('/auth/profile');
           setUser(response.data.user);
           
           // Atualizar status de assinatura após carregar o usuário
           try {
-            const subscriptionResponse = await axios.get('/api/auth/subscription-status');
+            const subscriptionResponse = await axios.get('/auth/subscription-status');
             setUser(prevUser => ({
               ...prevUser,
               planType: subscriptionResponse.data.planType,
@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await axios.post('/auth/login', {
         email,
         password
       });
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (name, email, password) => {
     try {
-      const response = await axios.post('/api/auth/register', {
+      const response = await axios.post('/auth/register', {
         name,
         email,
         password
@@ -112,7 +112,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await axios.put('/api/auth/profile', profileData);
+      const response = await axios.put('/auth/profile', profileData);
       setUser(response.data.user);
       return { success: true, user: response.data.user };
     } catch (error) {
@@ -124,7 +124,7 @@ export const AuthProvider = ({ children }) => {
   // Atualizar status de assinatura
   const updateSubscriptionStatus = async () => {
     try {
-      const response = await axios.get('/api/auth/subscription-status');
+      const response = await axios.get('/auth/subscription-status');
       setUser(prevUser => ({
         ...prevUser,
         planType: response.data.planType,
@@ -156,26 +156,15 @@ export const AuthProvider = ({ children }) => {
   // Função para recarregar dados do usuário
   const refreshUser = async () => {
     try {
-      const response = await axios.get('/api/auth/profile');
-      setUser(response.data.user);
-      
-      // Atualizar status de assinatura após carregar o usuário
-      try {
-        const subscriptionResponse = await axios.get('/api/auth/subscription-status');
-        setUser(prevUser => ({
-          ...prevUser,
-          planType: subscriptionResponse.data.planType,
-          subscriptionStatus: subscriptionResponse.data.subscriptionStatus,
-          subscriptionEndDate: subscriptionResponse.data.subscriptionEndDate
-        }));
-      } catch (subscriptionError) {
-        console.log('Erro ao carregar status de assinatura:', subscriptionError);
-      }
-      
-      return true;
+      const [profileResponse, subscriptionResponse] = await Promise.all([
+        axios.get('/auth/profile'),
+        axios.get('/auth/subscription-status')
+      ]);
+
+      setUser(profileResponse.data.user);
+      return { success: true, user: profileResponse.data.user, subscription: subscriptionResponse.data };
     } catch (error) {
-      console.error('Erro ao recarregar usuário:', error);
-      return false;
+      return { success: false };
     }
   };
 

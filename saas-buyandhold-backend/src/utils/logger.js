@@ -2,7 +2,7 @@ const winston = require('winston');
 const { logs } = require('../../config/environment');
 
 // Verificar se está em ambiente de desenvolvimento
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.APP_ENV === 'development';
 
 // Configuração do logger
 const logger = winston.createLogger({
@@ -15,16 +15,7 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'saas-buyandhold' },
-  transports: [
-    // Arquivo para todos os logs
-    new winston.transports.File({ 
-      filename: logs.file, 
-      level: 'error' 
-    }),
-    new winston.transports.File({ 
-      filename: logs.file 
-    })
-  ]
+  transports: []
 });
 
 // Se não estiver em produção, adicionar logs no console
