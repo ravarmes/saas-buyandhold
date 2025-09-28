@@ -1,28 +1,41 @@
 const { MercadoPagoConfig, Payment, Preference } = require('mercadopago');
-const { payments } = require('../../config/environment');
 const logger = require('../utils/logger');
+const { PixTransaction, User, Subscription } = require('../models');
 
 class MercadoPagoService {
   constructor() {
+    // Determinar qual token usar baseado no ambiente
+    const appEnv = process.env.APP_ENV || 'development';
+    const environment = appEnv === 'production' ? 'PROD' : 'TEST';
+    
+    const accessToken = environment === 'PROD' 
+      ? process.env.MERCADO_PAGO_ACCESS_TOKEN_PROD 
+      : process.env.MERCADO_PAGO_ACCESS_TOKEN_TEST;
+    
+    if (!accessToken) {
+      throw new Error(`Token do Mercado Pago não configurado para ambiente: ${environment} (APP_ENV: ${appEnv})`);
+    }
+
     this.client = new MercadoPagoConfig({
-      accessToken: payments.mercadoPago.accessToken,
+      accessToken: accessToken,
       options: {
-        timeout: 5000,
+        timeout: 10000,
         idempotencyKey: 'abc'
       }
     });
     
     this.payment = new Payment(this.client);
     this.preference = new Preference(this.client);
+    this.environment = environment;
+    this.appEnv = appEnv;
     
     // Log de inicialização
-    const environment = process.env.APP_ENV || 'development';
-    const mode = payments.mercadoPago.accessToken.startsWith('TEST-') ? 'TESTE (sandbox)' : 'PRODUÇÃO';
-    logger.info(`MercadoPago inicializado em modo: ${mode} - APP_ENV: ${environment}`);
+    const mode = accessToken.startsWith('TEST-') ? 'TESTE (sandbox)' : 'PRODUÇÃO';
+    logger.info(`MercadoPago inicializado em modo: ${mode} - Environment: ${environment} - APP_ENV: ${appEnv}`);
   }
 
   /**
-   * Criar pagamento PIX
+   * Criar pagamento PIX completo com armazenamento no banco
    * @param {Object} paymentData - Dados do pagamento
    * @param {number} paymentData.amount - Valor do pagamento
    * @param {string} paymentData.description - Descrição do pagamento
@@ -36,34 +49,50 @@ class MercadoPagoService {
     try {
       const { amount, description, email, name, cpf, userId } = paymentData;
       
+      // Validar dados obrigatórios
+      if (!amount || !description || !email || !name || !userId) {
+        throw new Error('Dados obrigatórios não fornecidos');
+      }
+
       // Separar nome em primeiro e último nome
       const nameParts = name.split(' ');
       const firstName = nameParts[0] || 'Cliente';
       const lastName = nameParts.slice(1).join(' ') || 'Premium';
       
       // Criar external_reference único
-      const externalReference = `premium_${Date.now()}`;
+      const externalReference = `pix_${userId}_${Date.now()}`;
       
-      // Data de expiração (30 minutos)
+      // Data de expiração (configurável via env, padrão 30 minutos)
+      const expirationMinutes = parseInt(process.env.PIX_EXPIRATION_MINUTES) || 30;
       const expirationDate = new Date();
-      expirationDate.setMinutes(expirationDate.getMinutes() + 30);
+      expirationDate.setMinutes(expirationDate.getMinutes() + expirationMinutes);
+      
+      // URL do webhook baseada no ambiente
+      const webhookUrl = this.appEnv === 'production' 
+        ? process.env.MERCADO_PAGO_WEBHOOK_URL_PROD 
+        : process.env.MERCADO_PAGO_WEBHOOK_URL_DEV || process.env.MERCADO_PAGO_WEBHOOK_URL ||
+          `${process.env.BACKEND_URL || 'http://localhost:5001'}/webhooks/mercadopago`;
       
       const paymentRequest = {
-        transaction_amount: amount,
+        transaction_amount: parseFloat(amount),
         description: description,
         payment_method_id: 'pix',
         payer: {
           email: email,
           first_name: firstName,
           last_name: lastName,
-          ...(cpf && { identification: { type: 'CPF', number: cpf } })
+          ...(cpf && { identification: { type: 'CPF', number: cpf.replace(/\D/g, '') } })
         },
         external_reference: externalReference,
-        notification_url: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/payments/webhook/mercadopago`,
+        notification_url: webhookUrl,
         date_of_expiration: expirationDate.toISOString()
       };
       
-      logger.info('Criando pagamento PIX no Mercado Pago', { paymentRequest });
+      logger.info('Criando pagamento PIX no Mercado Pago', { 
+        paymentRequest: { ...paymentRequest, payer: { email: paymentRequest.payer.email } },
+        userId,
+        externalReference
+      });
       
       const response = await this.payment.create({ body: paymentRequest });
       
@@ -71,17 +100,50 @@ class MercadoPagoService {
         logger.info('Pagamento PIX criado com sucesso no Mercado Pago', {
           paymentId: response.id,
           status: response.status,
-          externalReference: externalReference
+          externalReference: externalReference,
+          userId
+        });
+
+        // Salvar transação no banco de dados
+        const pixTransaction = await PixTransaction.create({
+          userId: userId,
+          mercadoPagoPaymentId: response.id.toString(),
+          externalReference: externalReference,
+          status: 'pending',
+          pixCode: response.point_of_interaction?.transaction_data?.qr_code,
+          qrCodeBase64: response.point_of_interaction?.transaction_data?.qr_code_base64,
+          pixKey: process.env.PIX_KEY,
+          amount: parseFloat(amount),
+          currency: 'BRL',
+          description: description,
+          expirationDate: expirationDate,
+          payerEmail: email,
+          payerName: name,
+          payerDocument: cpf?.replace(/\D/g, ''),
+          gatewayResponse: response,
+          metadata: {
+            environment: this.environment,
+            webhookUrl: webhookUrl,
+            createdVia: 'api'
+          }
+        });
+
+        logger.info('Transação PIX salva no banco de dados', {
+          transactionId: pixTransaction.id,
+          paymentId: response.id,
+          userId
         });
         
         return {
           success: true,
           paymentId: response.id.toString(),
+          transactionId: pixTransaction.id,
           qrCode: response.point_of_interaction?.transaction_data?.qr_code,
           qrCodeBase64: response.point_of_interaction?.transaction_data?.qr_code_base64,
           externalReference: externalReference,
           status: response.status,
-          expirationDate: expirationDate.toISOString()
+          expirationDate: expirationDate.toISOString(),
+          amount: parseFloat(amount)
         };
       } else {
         throw new Error('Resposta inválida do Mercado Pago');
@@ -90,7 +152,8 @@ class MercadoPagoService {
     } catch (error) {
       logger.error('Erro ao criar pagamento PIX no Mercado Pago', {
         error: error.message,
-        paymentData: { amount, description, email, name }
+        stack: error.stack,
+        paymentData: { amount, description, email, name, userId }
       });
       
       return {
@@ -164,6 +227,55 @@ class MercadoPagoService {
       return {
         success: false,
         error: `Erro ao criar pagamento por cartão: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Buscar detalhes do pagamento (usado pelo webhook)
+   * @param {string} paymentId - ID do pagamento
+   * @returns {Promise<Object>} Detalhes do pagamento
+   */
+  async getPaymentDetails(paymentId) {
+    try {
+      logger.info('Buscando detalhes do pagamento no Mercado Pago', { paymentId });
+      
+      const response = await this.payment.get({ id: paymentId });
+      
+      if (response && response.id) {
+        logger.info('Detalhes do pagamento obtidos com sucesso', {
+          paymentId: response.id,
+          status: response.status,
+          statusDetail: response.status_detail,
+          externalReference: response.external_reference
+        });
+        
+        return {
+          success: true,
+          payment: response
+        };
+      } else {
+        throw new Error('Pagamento não encontrado');
+      }
+      
+    } catch (error) {
+      logger.error('Erro ao buscar detalhes do pagamento', {
+        error: error.message,
+        paymentId
+      });
+      
+      // Verificar se é erro de pagamento não encontrado
+      if (error.message.includes('not found') || error.status === 404) {
+        return {
+          success: false,
+          errorType: 'not_found',
+          error: 'Pagamento não encontrado'
+        };
+      }
+      
+      return {
+        success: false,
+        error: error.message
       };
     }
   }
@@ -278,4 +390,4 @@ class MercadoPagoService {
 }
 
 // Exportar instância única
-module.exports = new MercadoPagoService();
+module.exports = MercadoPagoService;

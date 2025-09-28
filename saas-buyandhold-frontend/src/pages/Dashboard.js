@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePortfolio } from '../contexts/PortfolioContext';
 import { AdBannerHeader, AdBannerSidebar } from '../components/AdBanner';
+import UpgradeToPremium from '../components/UpgradeToPremium';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ const Dashboard = () => {
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [portfolioToDelete, setPortfolioToDelete] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const handleCreatePortfolio = async () => {
     if (newPortfolioName.trim()) {
@@ -454,7 +456,7 @@ const Dashboard = () => {
                     Desbloqueie carteiras ilimitadas, salvamento automático e muito mais!
                   </p>
                   <button 
-                    onClick={() => navigate('/upgrade')}
+                    onClick={() => setShowUpgradeModal(true)}
                     className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                   >
                     Ver Planos
@@ -559,6 +561,11 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <UpgradeToPremium onClose={() => setShowUpgradeModal(false)} />
       )}
     </div>
   );

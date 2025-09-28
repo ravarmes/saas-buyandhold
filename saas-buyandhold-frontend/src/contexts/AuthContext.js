@@ -153,6 +153,11 @@ export const AuthProvider = ({ children }) => {
     return isPremium();
   };
 
+  // Verificar se o usuário é admin
+  const isAdmin = () => {
+    return user?.role === 'admin';
+  };
+
   // Função para recarregar dados do usuário
   const refreshUser = async () => {
     try {
@@ -184,7 +189,8 @@ export const AuthProvider = ({ children }) => {
       save: canSavePortfolios(),
       multiplePortfolios: canCreateMultiplePortfolios(),
       history: isPremium(),
-      analytics: isPremium()
+      analytics: isPremium(),
+      isAdmin: isAdmin()
     }
   };
 

@@ -12,7 +12,7 @@ const runtimeProfile = process.env.REACT_APP_PROFILE || process.env.REACT_APP_EN
 const isDevFlag = runtimeProfile === 'development';
 const isProdFlag = runtimeProfile === 'production';
 
-const apiBaseURL = process.env.REACT_APP_API_URL || '/api';
+const apiBaseURL = process.env.REACT_APP_API_URL || 'http://localhost:5002/api';
 
 const environment = {
   // Detecta o ambiente atual

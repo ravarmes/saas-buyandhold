@@ -32,15 +32,18 @@ module.exports = (sequelize) => {
     },
     planType: {
       type: DataTypes.ENUM('free', 'premium'),
-      defaultValue: 'free'
+      defaultValue: 'free',
+      field: 'planType'
     },
     subscriptionStatus: {
       type: DataTypes.ENUM('active', 'cancelled', 'expired'),
-      defaultValue: 'active'
+      defaultValue: 'active',
+      field: 'subscriptionStatus'
     },
     lastLoginAt: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      field: 'lastLoginAt'
     },
     investmentSimulationsCount: {
       type: DataTypes.INTEGER,
@@ -48,23 +51,40 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       validate: {
         min: 0
-      }
+      },
+      field: 'investmentSimulationsCount'
     },
     status: {
       type: DataTypes.ENUM('active', 'inactive'),
       defaultValue: 'active',
-      allowNull: false
+      allowNull: false,
+      field: 'status'
     },
     resetPasswordToken: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
+      field: 'resetPasswordToken'
     },
     resetPasswordExpires: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      field: 'resetPasswordExpires'
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      field: 'createdAt'
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      field: 'updatedAt'
     }
   }, {
+    tableName: 'Users',
     timestamps: true,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     indexes: [
       {
         unique: true,
@@ -92,6 +112,10 @@ module.exports = (sequelize) => {
 
   User.prototype.isPremium = function() {
     return this.planType === 'premium' && this.subscriptionStatus === 'active';
+  };
+
+  User.prototype.isAdmin = function() {
+    return this.role === 'admin';
   };
 
   User.prototype.toJSON = function() {

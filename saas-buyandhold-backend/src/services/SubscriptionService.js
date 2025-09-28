@@ -164,7 +164,7 @@ class SubscriptionService {
           userId: userId,
           planType: paymentData.planType || 'premium',
           status: 'pending',
-          paymentMethod: paymentData.paymentMethod || 'hotmart',
+          paymentMethod: paymentData.paymentMethod || 'mercadopago',
           amount: paymentData.amount || 15.00,
           currency: paymentData.currency || 'BRL',
           startDate: new Date(),
@@ -175,11 +175,6 @@ class SubscriptionService {
 
       // Ativar assinatura para o mês atual
       await subscription.activateForCurrentMonth(paymentData.paymentDate);
-
-      // Atualizar dados específicos da Hotmart se fornecidos
-      if (paymentData.hotmartData) {
-        await subscription.updateFromHotmartPayment(paymentData.hotmartData);
-      }
 
       // Atualizar usuário para premium
       await user.update({
@@ -335,7 +330,6 @@ class SubscriptionService {
 
       return transactions.map(transaction => ({
         id: transaction.id,
-        hotmartTransactionId: transaction.hotmartTransactionId,
         eventType: transaction.eventType,
         status: transaction.status,
         paymentMethod: transaction.paymentMethod,

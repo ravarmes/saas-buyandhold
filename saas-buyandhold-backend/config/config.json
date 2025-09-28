@@ -1,9 +1,9 @@
 {
   "development": {
     "username": "postgres",
-    "password": "postgres123",
+    "password": "postgres",
     "database": "saas_buyandhold",
-    "host": "database",
+    "host": "localhost",
     "port": 5432,
     "dialect": "postgres",
     "timezone": "-03:00",
@@ -32,12 +32,12 @@
   "production": {
     "username": "postgres",
     "password": "postgres",
-    "database": "buyandhold_prod",
+    "database": "saas_buyandhold",
     "host": "localhost",
     "port": 5432,
     "dialect": "postgres",
     "timezone": "-03:00",
-    "ssl": true,
+    "ssl": false,
     "pool": {
       "max": 10,
       "min": 0,

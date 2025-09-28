@@ -1,0 +1,117 @@
+/* Estilos para os componentes de anúncios */
+.ad-container {
+  margin: 10px 0;
+  text-align: center;
+  overflow: hidden;
+}
+
+.ad-container .adsbygoogle {
+  display: block !important;
+  margin: 0 auto;
+}
+
+/* Estilos específicos para diferentes tipos de anúncios */
+.ad-header {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.ad-header .adsbygoogle {
+  width: 100% !important;
+  height: 90px !important;
+  min-height: 90px !important;
+}
+
+.ad-sidebar {
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.ad-sidebar .adsbygoogle {
+  width: 300px !important;
+  height: 250px !important;
+  max-width: 300px !important;
+}
+
+.ad-square {
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.ad-square .adsbygoogle {
+  width: 300px !important;
+  height: 250px !important;
+  max-width: 300px !important;
+}
+
+.ad-content {
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.ad-content .adsbygoogle {
+  width: 300px !important;
+  height: 250px !important;
+  max-width: 300px !important;
+}
+
+.ad-infeed {
+  width: 100%;
+  margin: 20px 0;
+}
+
+.ad-infeed .adsbygoogle {
+  width: 100% !important;
+  min-height: 100px !important;
+}
+
+.ad-footer {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.ad-footer .adsbygoogle {
+  width: 100% !important;
+  height: 90px !important;
+  min-height: 90px !important;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .ad-sidebar,
+  .ad-square,
+  .ad-content {
+    max-width: 100%;
+    padding: 0 10px;
+  }
+  
+  .ad-sidebar .adsbygoogle,
+  .ad-square .adsbygoogle,
+  .ad-content .adsbygoogle {
+    width: 100% !important;
+    max-width: 320px !important;
+  }
+}
+
+/* Estado de carregamento */
+.ad-container.loading {
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  position: relative;
+}
+
+.ad-container.loading::before {
+  content: 'Carregando anúncio...';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #999;
+  font-size: 12px;
+}
+
+/* Ocultar anúncios para usuários premium */
+.user-premium .ad-container {
+  display: none !important;
+}

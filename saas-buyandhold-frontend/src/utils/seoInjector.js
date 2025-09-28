@@ -55,5 +55,18 @@ const injectGoogleAdSense = () => {
   script.async = true;
   script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${services.googleAdsense.client}`;
   script.crossOrigin = 'anonymous';
+  
+  // Adicionar evento de carregamento para inicializar o adsbygoogle
+  script.onload = () => {
+    if (!window.adsbygoogle) {
+      window.adsbygoogle = [];
+    }
+    window.adsbygoogle.loaded = true;
+  };
+  
+  script.onerror = (error) => {
+    console.error('Erro ao carregar Google AdSense:', error);
+  };
+  
   document.head.appendChild(script);
 };

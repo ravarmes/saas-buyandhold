@@ -8,7 +8,7 @@ const Upgrade = () => {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('hotmart');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('pix');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -32,9 +32,12 @@ const Upgrade = () => {
       try {
         const response = await axios.get('/payments/mercadopago-config');
         setIsTestEnvironment(response.data.isTestEnvironment);
+        console.log('Ambiente detectado:', response.data.isTestEnvironment ? 'TESTE' : 'PRODUÇÃO');
       } catch (error) {
         console.error('Erro ao verificar ambiente:', error);
-        setIsTestEnvironment(false);
+        // Fallback: verificar variável de ambiente do frontend
+        const appEnv = process.env.REACT_APP_ENVIRONMENT || process.env.NODE_ENV;
+        setIsTestEnvironment(appEnv !== 'production');
       }
     };
 
@@ -62,73 +65,28 @@ const Upgrade = () => {
   }, [user]);
 
   const handleCreatePayment = async () => {
-    console.log('Botão clicado - iniciando criação de pagamento');
-    console.log('Método de pagamento selecionado:', selectedPaymentMethod);
-    console.log('Usuário:', user);
-    
+    if (loading) return;
+
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
       const token = localStorage.getItem('token');
-      console.log('Token encontrado:', token ? 'Sim' : 'Não');
-      
-      let endpoint, requestData;
-      
-      // Definir endpoint baseado no método de pagamento
-      if (selectedPaymentMethod === 'hotmart') {
-        endpoint = '/payments/create-hotmart-pix';
-        requestData = {
-          amount: 15.00,
-          productName: 'Plano Premium - Buy and Hold'
-        };
-      } else if (selectedPaymentMethod === 'pix') {
-        endpoint = '/payments/create-mercadopago';
-        requestData = {
-          paymentMethod: selectedPaymentMethod,
-          amount: 15.00
-        };
-      } else {
-        endpoint = '/payments/create';
-        requestData = {
-          paymentMethod: selectedPaymentMethod,
-          amount: 15.00
-        };
-      }
-      
+      let endpoint = '/payment/create-pix';
+
       const response = await axios.post(
         endpoint,
-        requestData,
+        { 
+          amount: 15.00,
+          description: 'Upgrade para Premium - Buy and Hold SaaS'
+        },
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
 
-      console.log('Resposta da API:', response.data);
-      
-      // Estrutura de dados diferente para cada método
-      if (selectedPaymentMethod === 'hotmart') {
-        // Para Hotmart PIX, mostrar modal com código PIX
-        if (response.data.success && response.data.pixCode) {
-          setPaymentData({
-            id: response.data.pixId,
-            pixId: response.data.pixId,
-            paymentData: {
-              pixKey: response.data.pixCode,
-              qrCode: response.data.pixCode,
-              qrCodeBase64: response.data.qrCodeBase64,
-              instructions: 'Escaneie o QR Code ou copie o código PIX para realizar o pagamento via Hotmart'
-            },
-            hotmartPix: true
-          });
-          setShowPaymentModal(true);
-          setSuccess('Código PIX gerado com sucesso!');
-        } else {
-          console.error('Código PIX não foi gerado:', response.data);
-          setError('Erro: Código PIX não foi gerado');
-        }
-      } else if (selectedPaymentMethod === 'pix' && response.data.payment) {
+      if (response.data.payment) {
         setPaymentData({
           ...response.data.subscription,
           paymentData: {
@@ -145,9 +103,7 @@ const Upgrade = () => {
         setShowPaymentModal(true);
       }
       
-      if (selectedPaymentMethod !== 'hotmart') {
-        setSuccess('Pagamento criado com sucesso!');
-      }
+      setSuccess('Pagamento criado com sucesso!');
     } catch (error) {
       console.error('Erro ao criar pagamento:', error);
       console.error('Resposta do erro:', error.response?.data);
@@ -168,14 +124,11 @@ const Upgrade = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // Usar o ID do pagamento correto
-      const paymentId = paymentData.mercadoPagoPayment 
-        ? paymentData.mercadoPagoPayment.id
-        : paymentData.paymentId;
-      
       const response = await axios.post(
-        '/payments/simulate-payment',
-        { paymentId },
+        '/payments/simulate-success',
+        { 
+          paymentId: paymentData.mercadoPagoPayment?.id || paymentData.id
+        },
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -255,108 +208,6 @@ const Upgrade = () => {
     }
   };
 
-  const handleSimulateHotmartPayment = async (type) => {
-    if (!paymentData || isConfirming) return;
-
-    setIsConfirming(true);
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const token = localStorage.getItem('token');
-      
-      const endpoint = type === 'success' 
-        ? '/payments/simulate-hotmart-success'
-        : '/payments/simulate-hotmart-failure';
-      
-      const response = await axios.post(
-        endpoint,
-        { 
-          linkId: paymentData.linkId || paymentData.id || `hotmart_${Date.now()}`
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      if (response.data.success) {
-        if (type === 'success') {
-          setSuccess('Pagamento Hotmart simulado como aprovado! Bem-vindo ao plano Premium!');
-          setShowPaymentModal(false);
-          
-          // Atualizar dados do usuário
-          const refreshSuccess = await refreshUser();
-          
-          if (refreshSuccess) {
-            // Redirecionar para dashboard após 2 segundos
-            setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
-          } else {
-            // Se falhou ao atualizar, sugerir logout/login
-            setSuccess('Pagamento simulado! Por favor, faça logout e login novamente para ver as mudanças.');
-          }
-        } else {
-          setError('Pagamento Hotmart simulado como cancelado/rejeitado.');
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao simular pagamento Hotmart:', error);
-      setError(error.response?.data?.error || 'Erro ao simular pagamento Hotmart');
-    } finally {
-      setLoading(false);
-      setIsConfirming(false);
-    }
-  };
-
-  const handleSimulateHotmartPix = async () => {
-    if (!paymentData || isConfirming) return;
-
-    setIsConfirming(true);
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const token = localStorage.getItem('token');
-      
-      const response = await axios.post(
-        '/payments/simulate-hotmart-pix',
-        { 
-          pixId: paymentData.pixId
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      if (response.data.success) {
-        setSuccess('Pagamento PIX Hotmart simulado como aprovado! Bem-vindo ao plano Premium!');
-        setShowPaymentModal(false);
-        
-        // Atualizar dados do usuário
-        const refreshSuccess = await refreshUser();
-        
-        if (refreshSuccess) {
-          // Redirecionar para dashboard após 2 segundos
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        } else {
-          // Se falhou ao atualizar, sugerir logout/login
-          setSuccess('Pagamento simulado! Por favor, faça logout e login novamente para ver as mudanças.');
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao simular pagamento PIX Hotmart:', error);
-      setError(error.response?.data?.error || 'Erro ao simular pagamento PIX Hotmart');
-    } finally {
-      setLoading(false);
-      setIsConfirming(false);
-    }
-  };
-
   const handleCreditCardSuccess = async (paymentResponse) => {
     try {
       setSuccess('Pagamento por cartão de crédito processado com sucesso! Bem-vindo ao plano Premium!');
@@ -386,32 +237,11 @@ const Upgrade = () => {
 
     try {
       const token = localStorage.getItem('token');
-      
-      // Definir endpoint baseado no tipo de pagamento
-      let endpoint, requestData;
-      
-      if (paymentData.hotmartPix) {
-        // PIX da Hotmart
-        endpoint = '/payments/verify-hotmart-pix';
-        requestData = {
-          pixId: paymentData.pixId
-        };
-      } else if (paymentData.mercadoPagoPayment) {
-        // PIX do Mercado Pago
-        endpoint = '/payments/verify-mercadopago';
-        requestData = {
-          subscriptionId: paymentData.id,
-          paymentId: paymentData.mercadoPagoPayment.id
-        };
-      } else {
-        // PIX padrão
-        endpoint = '/payments/verify-pix';
-        requestData = {
-          subscriptionId: paymentData.id,
-          paymentId: paymentData.paymentId
-        };
-      }
-      
+      let endpoint = '/payments/verify-pix';
+      let requestData = { 
+        paymentId: paymentData.mercadoPagoPayment?.id || paymentData.id 
+      };
+
       const response = await axios.post(
         endpoint,
         requestData,
@@ -420,12 +250,9 @@ const Upgrade = () => {
         }
       );
 
-      // Verificar se o pagamento foi aprovado baseado no tipo
-      let isPaymentApproved;
+      let isPaymentApproved = false;
       
-      if (paymentData.hotmartPix) {
-        isPaymentApproved = response.data.success && response.data.paid;
-      } else if (paymentData.mercadoPagoPayment) {
+      if (paymentData.mercadoPagoPayment) {
         isPaymentApproved = response.data.payment?.isApproved;
       } else {
         isPaymentApproved = response.data.paymentVerified;
@@ -521,67 +348,63 @@ const Upgrade = () => {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
-      setSuccess('Código copiado para a área de transferência!');
+      setSuccess('Código PIX copiado para a área de transferência!');
       setTimeout(() => setSuccess(''), 3000);
     }).catch(() => {
-      setError('Erro ao copiar código');
+      setError('Erro ao copiar código PIX');
       setTimeout(() => setError(''), 3000);
     });
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             Upgrade para Premium
           </h1>
           <p className="text-lg text-gray-600">
-            Desbloqueie todas as funcionalidades e salve suas carteiras
+            Desbloqueie todas as funcionalidades e maximize seus investimentos
           </p>
         </div>
 
         {/* Plano Premium */}
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Plano Premium</h2>
-            <div className="text-4xl font-bold text-blue-600 mb-4">
-              R$ 15,00
-              <span className="text-lg font-normal text-gray-500">/mês</span>
-            </div>
+            <div className="text-4xl font-bold text-blue-600 mb-2">R$ 15,00</div>
+            <p className="text-gray-600">Pagamento único via PIX</p>
           </div>
 
           {/* Benefícios */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Funcionalidades Premium:</h3>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Salvar carteiras ilimitadas</span>
+                <span className="text-gray-700">Portfólios ilimitados</span>
               </div>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Executar investimentos</span>
+                <span className="text-gray-700">Análises avançadas</span>
               </div>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Histórico de investimentos</span>
+                <span className="text-gray-700">Relatórios detalhados</span>
               </div>
             </div>
             <div className="space-y-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Suporte Premium:</h3>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -592,7 +415,7 @@ const Upgrade = () => {
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-gray-700">Relatórios avançados</span>
+                <span className="text-gray-700">Exportação de dados</span>
               </div>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
@@ -607,62 +430,73 @@ const Upgrade = () => {
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Escolha o método de pagamento:</h3>
             
-            {/* PIX Hotmart - Único método disponível */}
+            {/* PIX Mercado Pago */}
             <div 
               className={`border rounded-lg p-4 mb-3 cursor-pointer transition-colors ${
-                selectedPaymentMethod === 'hotmart' 
+                selectedPaymentMethod === 'pix' 
                   ? 'border-blue-500 bg-blue-50' 
                   : 'border-gray-200 hover:border-gray-300'
               }`}
-              onClick={() => setSelectedPaymentMethod('hotmart')}
+              onClick={() => setSelectedPaymentMethod('pix')}
             >
               <div className="flex items-center">
                 <input
                   type="radio"
                   name="paymentMethod"
-                  value="hotmart"
-                  checked={selectedPaymentMethod === 'hotmart'}
-                  onChange={() => setSelectedPaymentMethod('hotmart')}
+                  value="pix"
+                  checked={selectedPaymentMethod === 'pix'}
+                  onChange={() => setSelectedPaymentMethod('pix')}
                   className="mr-3"
                 />
                 <svg className="w-6 h-6 text-blue-600 mr-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
                 <div>
-                  <h4 className="font-semibold text-gray-800">PIX (Hotmart)</h4>
+                  <h4 className="font-semibold text-gray-800">PIX (Mercado Pago)</h4>
                   <p className="text-sm text-gray-600">Pagamento instantâneo e seguro via PIX</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Botão de Upgrade */}
-          <button
+          {/* Botões de Upgrade */}
+          <div className="space-y-3">
+            <button
               onClick={handleCreatePayment}
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
             >
-              {loading ? 'Processando...' : 'Pagar com PIX'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processando...
+                </>
+              ) : (
+                'Pagar com PIX (Mercado Pago)'
+              )}
             </button>
-        </div>
+          </div>
 
-        {/* Mensagens */}
+          {/* Mensagens de Erro e Sucesso */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex">
-                <svg className="w-5 h-5 text-red-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
-                <p className="text-red-700">{error}</p>
+                <div className="text-red-700">{error}</div>
               </div>
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-              <div className="flex">
-                <svg className="w-5 h-5 text-green-400 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 <p className="text-green-700">{success}</p>
               </div>
@@ -682,112 +516,70 @@ const Upgrade = () => {
             </div>
 
             {/* Modal para PIX Mercado Pago */}
-            {selectedPaymentMethod === 'pix' && paymentData.paymentData && (
+            {paymentData.paymentData && (
               <div className="space-y-4">
                 {/* QR Code Base64 se disponível */}
                 {paymentData.paymentData.qrCodeBase64 && (
                   <div className="bg-gray-50 p-4 rounded-lg text-center">
                     <p className="text-sm text-gray-600 mb-2">QR Code PIX:</p>
                     <img 
-                      src={`data:image/png;base64,${paymentData.paymentData.qrCodeBase64}`}
-                      alt="QR Code PIX"
-                      className="mx-auto mb-2 border rounded"
+                      src={paymentData.paymentData.qrCodeBase64} 
+                      alt="QR Code PIX" 
+                      className="mx-auto max-w-full h-auto border border-gray-200 rounded"
                       style={{ maxWidth: '200px' }}
                     />
-                    <p className="text-xs text-gray-500">Escaneie com o app do seu banco</p>
                   </div>
                 )}
-                
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Código PIX (Copia e Cola):</p>
-                  <div className="flex items-center justify-between bg-white p-2 rounded border">
-                    <span className="text-xs font-mono break-all pr-2">{paymentData.paymentData.qrCode}</span>
-                    <button
-                      onClick={() => copyToClipboard(paymentData.paymentData.qrCode)}
-                      className="text-blue-600 hover:text-blue-700 text-sm ml-2 flex-shrink-0"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Informações adicionais do Mercado Pago */}
-                {paymentData.mercadoPagoPayment && (
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="text-sm space-y-1">
-                      <p><strong>ID do Pagamento:</strong> {paymentData.mercadoPagoPayment.id}</p>
-                      <p><strong>Valor:</strong> R$ {paymentData.mercadoPagoPayment.amount}</p>
-                      <p><strong>Status:</strong> {paymentData.mercadoPagoPayment.status || 'Aguardando pagamento'}</p>
-                      {paymentData.mercadoPagoPayment.expirationDate && (
-                        <p><strong>Expira em:</strong> {new Date(paymentData.mercadoPagoPayment.expirationDate).toLocaleString('pt-BR')}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                <p className="text-sm text-gray-600 text-center">
-                  {paymentData.paymentData.instructions}
-                </p>
-              </div>
-            )}
 
-            {/* Modal para PIX Hotmart */}
-            {selectedPaymentMethod === 'hotmart' && paymentData.hotmartPix && paymentData.paymentData && (
-              <div className="space-y-4">
-                {/* QR Code Base64 se disponível */}
-                {paymentData.paymentData.qrCodeBase64 ? (
-                  <div className="bg-gray-50 p-4 rounded-lg text-center">
-                    <p className="text-sm text-gray-600 mb-2">QR Code PIX:</p>
-                    <div className="flex justify-center mb-2">
-                      <img 
-                        src={paymentData.paymentData.qrCodeBase64}
-                        alt="QR Code PIX Hotmart"
-                        className="border rounded bg-white p-2"
-                        style={{ maxWidth: '200px', maxHeight: '200px' }}
-                        onError={(e) => {
-                          console.error('Erro ao carregar QR Code:', e);
-                          e.target.style.display = 'none';
-                          e.target.nextElementSibling.style.display = 'block';
-                        }}
-                      />
-                      <div className="text-sm text-red-600 hidden">
-                        ❌ Erro ao carregar QR Code. Use o código PIX abaixo.
+                {/* Código PIX para copiar */}
+                {paymentData.paymentData.qrCode && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-2">Código PIX (Copia e Cola):</p>
+                    <div className="bg-white p-3 rounded border">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-mono break-all pr-2 leading-relaxed">{paymentData.paymentData.qrCode}</span>
+                        <button
+                          onClick={() => copyToClipboard(paymentData.paymentData.qrCode)}
+                          className="text-blue-600 hover:text-blue-700 text-sm ml-2 flex-shrink-0 px-2 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          📋 Copiar
+                        </button>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500">Escaneie com o app do seu banco</p>
+                    <p className="text-xs text-gray-500 mt-2">Cole este código no seu app bancário na opção "PIX Copia e Cola"</p>
                   </div>
-                ) : (
-                  <div className="bg-yellow-50 p-4 rounded-lg text-center border border-yellow-200">
-                    <p className="text-sm text-yellow-700 mb-2">⚠️ QR Code não disponível</p>
-                    <p className="text-xs text-yellow-600">Use o código PIX abaixo para realizar o pagamento</p>
+                )}
+
+                {/* Código PIX alternativo se disponível */}
+                {paymentData.paymentData.pixKey && paymentData.paymentData.pixKey !== 'Código PIX gerado automaticamente' && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-2">Chave PIX:</p>
+                    <div className="bg-white p-3 rounded border">
+                      <div className="flex items-start justify-between">
+                        <span className="text-xs font-mono break-all pr-2 leading-relaxed">{paymentData.paymentData.pixKey}</span>
+                        <button
+                          onClick={() => copyToClipboard(paymentData.paymentData.pixKey)}
+                          className="text-blue-600 hover:text-blue-700 text-sm ml-2 flex-shrink-0 px-2 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          📋 Copiar
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Cole este código no seu app bancário na opção "PIX Copia e Cola"</p>
                   </div>
                 )}
                 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Código PIX (Copia e Cola):</p>
-                  <div className="bg-white p-3 rounded border">
-                    <div className="flex items-start justify-between">
-                      <span className="text-xs font-mono break-all pr-2 leading-relaxed">{paymentData.paymentData.pixKey}</span>
-                      <button
-                        onClick={() => copyToClipboard(paymentData.paymentData.pixKey)}
-                        className="text-blue-600 hover:text-blue-700 text-sm ml-2 flex-shrink-0 px-2 py-1 border border-blue-300 rounded hover:bg-blue-50 transition-colors"
-                      >
-                        📋 Copiar
-                      </button>
+                {/* Informações adicionais da Hotmart */}
+                {paymentData.pixId && (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="text-sm space-y-1">
+                      <p><strong>PIX ID:</strong> {paymentData.pixId}</p>
+                      <p><strong>Valor:</strong> R$ 15,00</p>
+                      <p><strong>Status:</strong> Aguardando pagamento</p>
+                      <p><strong>Expira em:</strong> 30 minutos</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Cole este código no seu app bancário na opção "PIX Copia e Cola"</p>
-                </div>
-                
-                {/* Informações adicionais da Hotmart */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="text-sm space-y-1">
-                    <p><strong>PIX ID:</strong> {paymentData.pixId}</p>
-                    <p><strong>Valor:</strong> R$ 15,00</p>
-                    <p><strong>Status:</strong> Aguardando pagamento</p>
-                    <p><strong>Expira em:</strong> 30 minutos</p>
-                  </div>
-                </div>
+                )}
                 
                 <p className="text-sm text-gray-600 text-center">
                   {paymentData.paymentData.instructions}
@@ -811,78 +603,49 @@ const Upgrade = () => {
               </div>
             )}
 
-            <div className="space-y-3 mt-6">
-              {/* Botões de Simulação (apenas em ambiente de desenvolvimento) */}
-              {(process.env.REACT_APP_ENVIRONMENT !== 'production' && process.env.REACT_APP_PROFILE !== 'production') && paymentData && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <div className="flex items-center mb-2">
-                    <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-sm font-medium text-green-800">Ambiente de Desenvolvimento</span>
-                  </div>
-                  <p className="text-xs text-green-700 mb-3">
-                    Simule diferentes cenários de pagamento para testes:
-                  </p>
-                  <div className="space-y-2">
-                    {paymentData.hotmartPix ? (
-                      <button
-                        onClick={handleSimulateHotmartPix}
-                        disabled={loading || isConfirming}
-                        className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                      >
-                        {(loading || isConfirming) ? 'Simulando...' : '✅ Simular Pagamento Aprovado'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleSimulateGenericPayment}
-                        disabled={loading || isConfirming}
-                        className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                      >
-                        {(loading || isConfirming) ? 'Simulando...' : '✅ Simular Pagamento Aprovado'}
-                      </button>
-                    )}
-                  </div>
+            {/* Botões de Simulação (apenas em ambiente de desenvolvimento) */}
+            {(process.env.REACT_APP_ENVIRONMENT !== 'production' && process.env.REACT_APP_PROFILE !== 'production') && paymentData && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center mb-2">
+                  <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium text-green-800">Ambiente de Desenvolvimento</span>
                 </div>
-              )}
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Cancelar
-                </button>
-                {selectedPaymentMethod === 'pix' ? (
+                <p className="text-xs text-green-700 mb-3">
+                  Simule diferentes cenários de pagamento para testes:
+                </p>
+                <div className="space-y-2">
                   <button
-                    onClick={handleVerifyPayment}
+                    onClick={handleSimulatePayment}
                     disabled={loading || isConfirming}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                   >
-                    {(loading || isConfirming) ? 'Verificando...' : 'Verificar Pagamento'}
+                    {(loading || isConfirming) ? 'Simulando...' : '✅ Simular Pagamento Aprovado'}
                   </button>
-                ) : selectedPaymentMethod === 'hotmart' ? (
-                  <button
-                    onClick={handleVerifyPayment}
-                    disabled={loading || isConfirming}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {(loading || isConfirming) ? 'Verificando...' : 'Confirmar Pagamento'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleConfirmPayment}
-                    disabled={loading || isConfirming}
-                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {(loading || isConfirming) ? 'Confirmando...' : 'Confirmar Pagamento'}
-                  </button>
-                )}
+                </div>
               </div>
+            )}
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleVerifyPayment}
+                disabled={loading || isConfirming}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {(loading || isConfirming) ? 'Verificando...' : 'Verificar Pagamento'}
+              </button>
             </div>
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

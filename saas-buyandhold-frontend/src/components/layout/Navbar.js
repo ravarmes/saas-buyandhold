@@ -81,6 +81,18 @@ const Navbar = () => {
                 >
                   Configurações
                 </Link>
+                {permissions.isAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      isActive('/admin')
+                        ? 'text-red-600 bg-red-50'
+                        : 'text-red-700 hover:text-red-600'
+                    }`}
+                  >
+                    Admin
+                  </Link>
+                )}
                 
                 {/* User menu */}
                 <div className="relative group">
@@ -198,6 +210,15 @@ const Navbar = () => {
                   >
                     Configurações
                   </Link>
+                  {permissions.isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="text-red-700 hover:text-red-600 block px-3 py-2 rounded-md text-base font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Admin
+                    </Link>
+                  )}
                   <Link
                     to="/profile"
                     className="text-gray-700 hover:text-blue-600 block px-3 py-2 rounded-md text-base font-medium"

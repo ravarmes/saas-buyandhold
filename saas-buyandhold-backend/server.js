@@ -16,6 +16,8 @@ const assetRoutes = require('./src/routes/assets');
 const investmentRoutes = require('./src/routes/investments');
 const assetDataRoutes = require('./src/routes/assetData');
 const paymentRoutes = require('./src/routes/payments');
+const pixPaymentRoutes = require('./src/routes/pixPayments');
+const mercadoPagoPaymentRoutes = require('./src/routes/payment'); // Nova rota do Mercado Pago
 // const asaasRoutes = require('./src/routes/asaasRoutes');
 const contactRoutes = require('./src/routes/contact');
 
@@ -47,6 +49,8 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/investments', investmentRoutes);
 app.use('/api/asset-data', assetDataRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/pix-payments', pixPaymentRoutes);
+app.use('/api/payment', mercadoPagoPaymentRoutes); // Nova rota do Mercado Pago PIX
 // app.use('/api/payments/asaas', asaasRoutes);
 app.use('/api/contact', contactRoutes);
 

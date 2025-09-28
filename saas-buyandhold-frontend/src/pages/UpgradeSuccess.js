@@ -18,10 +18,10 @@ const UpgradeSuccess = () => {
         const buyerEmail = searchParams.get('buyer_email');
         
         if (transactionId) {
-          // Verificar o status da transação na Hotmart
+          // Verificar o status da transação no Mercado Pago
           const token = localStorage.getItem('token');
           const response = await axios.get(
-            `/payments/hotmart/status/${transactionId}`,
+            `/payments/mercadopago/status/${transactionId}`,
             {
               headers: { Authorization: `Bearer ${token}` }
             }

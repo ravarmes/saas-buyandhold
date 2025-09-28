@@ -36,6 +36,7 @@ const Subscription = require('./Subscription')(sequelize, DataTypes);
 const Payment = require('./Payment')(sequelize, DataTypes);
 const PaymentTransaction = require('./PaymentTransaction')(sequelize, DataTypes);
 const WebhookEventLog = require('./WebhookEventLog')(sequelize, DataTypes);
+const PixPaymentCode = require('./PixPaymentCode')(sequelize, DataTypes);
 
 // Define associations
 User.hasMany(Portfolio, { foreignKey: 'userId', as: 'portfolios' });
@@ -57,6 +58,13 @@ PaymentTransaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 Subscription.hasMany(PaymentTransaction, { foreignKey: 'subscriptionId', as: 'transactions' });
 PaymentTransaction.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
 
+// Associações para PixPaymentCode
+User.hasMany(PixPaymentCode, { foreignKey: 'userId', as: 'pixPaymentCodes' });
+PixPaymentCode.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+Subscription.hasMany(PixPaymentCode, { foreignKey: 'subscriptionId', as: 'pixPaymentCodes' });
+PixPaymentCode.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
+
 module.exports = {
   sequelize,
   User,
@@ -65,5 +73,6 @@ module.exports = {
   Subscription,
   Payment,
   PaymentTransaction,
-  WebhookEventLog
+  WebhookEventLog,
+  PixPaymentCode
 };

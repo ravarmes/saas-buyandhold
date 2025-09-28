@@ -52,6 +52,30 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Dados específicos do provedor (QR code, links, etc.)'
     },
+    // QR Code para PIX
+    qrCode: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'URL do QR Code PIX'
+    },
+    // QR Code em Base64
+    qrCodeBase64: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'QR Code PIX em formato Base64'
+    },
+    // Código PIX copia e cola
+    pixCopyPaste: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Código PIX para copiar e colar'
+    },
+    // Status detalhado do Mercado Pago
+    statusDetail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Status detalhado do pagamento no Mercado Pago'
+    },
     // Data de aprovação do pagamento
     approvedAt: {
       type: DataTypes.DATE,

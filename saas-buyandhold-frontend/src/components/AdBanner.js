@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import './AdBanner.css';
 
 const AdBanner = ({ 
   slot, 
@@ -13,20 +14,28 @@ const AdBanner = ({
 
   useEffect(() => {
     // Só carrega anúncios se o usuário não for premium
-    if (!permissions?.isPremium) {
+    if (!permissions?.isPremium && slot) {
       try {
-        // Verifica se o AdSense está disponível
-        if (window.adsbygoogle) {
-          window.adsbygoogle.push({});
-        }
+        // Aguarda um pouco para garantir que o DOM está pronto
+        const timer = setTimeout(() => {
+          // Verifica se o AdSense está disponível
+          if (window.adsbygoogle && window.adsbygoogle.loaded) {
+            window.adsbygoogle.push({});
+          } else if (window.adsbygoogle) {
+            // Se ainda não carregou, tenta novamente
+            window.adsbygoogle.push({});
+          }
+        }, 100);
+
+        return () => clearTimeout(timer);
       } catch (error) {
         console.error('Erro ao carregar anúncio:', error);
       }
     }
-  }, [permissions?.isPremium]);
+  }, [permissions?.isPremium, slot]);
 
-  // Não renderiza anúncios para usuários premium
-  if (permissions?.isPremium) {
+  // Não renderiza anúncios para usuários premium ou sem slot
+  if (permissions?.isPremium || !slot) {
     return null;
   }
 
@@ -53,35 +62,39 @@ const AdBanner = ({
 // Componentes pré-configurados para diferentes tipos de anúncios
 export const AdBannerHeader = ({ className = '' }) => (
   <AdBanner
-    slot="1234567890" // Substitua pelo slot real do AdSense
-    format="horizontal"
-    style={{ width: '100%', height: '90px' }}
+    slot="8703883002838699-1" // Header banner slot
+    format="auto"
+    responsive={true}
+    style={{ width: '100%', height: '90px', minHeight: '90px' }}
     className={`ad-header ${className}`}
   />
 );
 
 export const AdBannerSidebar = ({ className = '' }) => (
   <AdBanner
-    slot="2345678901" // Substitua pelo slot real do AdSense
-    format="vertical"
-    style={{ maxWidth: '300px', width: '100%', height: '250px' }}
+    slot="8703883002838699-2" // Sidebar banner slot
+    format="auto"
+    responsive={true}
+    style={{ width: '300px', height: '250px', maxWidth: '300px' }}
     className={`ad-sidebar ${className}`}
   />
 );
 
 export const AdBannerSquare = ({ className = '' }) => (
   <AdBanner
-    slot="3456789012" // Substitua pelo slot real do AdSense
-    format="rectangle"
-    style={{ maxWidth: '300px', width: '100%', height: '250px' }}
+    slot="8703883002838699-3" // Square banner slot
+    format="auto"
+    responsive={true}
+    style={{ width: '300px', height: '250px', maxWidth: '300px' }}
     className={`ad-square ${className}`}
   />
 );
 
 export const AdBannerInFeed = ({ className = '' }) => (
   <AdBanner
-    slot="4567890123" // Substitua pelo slot real do AdSense
-    format="fluid"
+    slot="8703883002838699-4" // In-feed banner slot
+    format="auto"
+    responsive={true}
     style={{ width: '100%', minHeight: '100px' }}
     className={`ad-infeed ${className}`}
   />
@@ -89,18 +102,20 @@ export const AdBannerInFeed = ({ className = '' }) => (
 
 export const AdBannerContent = ({ className = '' }) => (
   <AdBanner
-    slot="6789012345" // Substitua pelo slot real do AdSense
-    format="rectangle"
-    style={{ maxWidth: '300px', width: '100%', height: '250px' }}
+    slot="8703883002838699-5" // Content banner slot
+    format="auto"
+    responsive={true}
+    style={{ width: '300px', height: '250px', maxWidth: '300px' }}
     className={`ad-content ${className}`}
   />
 );
 
 export const AdBannerFooter = ({ className = '' }) => (
   <AdBanner
-    slot="5678901234" // Substitua pelo slot real do AdSense
-    format="horizontal"
-    style={{ width: '100%', height: '90px' }}
+    slot="8703883002838699-6" // Footer banner slot
+    format="auto"
+    responsive={true}
+    style={{ width: '100%', height: '90px', minHeight: '90px' }}
     className={`ad-footer ${className}`}
   />
 );

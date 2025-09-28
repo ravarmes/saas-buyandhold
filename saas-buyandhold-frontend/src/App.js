@@ -26,6 +26,8 @@ import ResetPassword from './pages/ResetPassword';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import UpgradeSuccess from './pages/UpgradeSuccess';
 import UpgradeCancel from './pages/UpgradeCancel';
+import AdminPanel from './pages/AdminPanel';
+import PixPayment from './pages/PixPayment';
 
 function App() {
   // Injetar configurações de SEO baseadas no ambiente
@@ -101,6 +103,16 @@ function App() {
                 <Route path="/suggest-feature" element={
                   <ProtectedRoute>
                     <SuggestFeature />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute>
+                    <AdminPanel />
+                  </ProtectedRoute>
+                } />
+                <Route path="/pix-payment" element={
+                  <ProtectedRoute>
+                    <PixPayment />
                   </ProtectedRoute>
                 } />
               </Routes>

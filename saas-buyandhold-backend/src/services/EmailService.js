@@ -212,44 +212,102 @@ class EmailService {
    * @param {string} data.resetToken - Token de reset
    */
   async sendPasswordResetEmail(data) {
-    const { email, name, resetToken } = data;
+    const { email, name, resetToken, accessCode, isAccessCode = false, isConfirmation = false } = data;
     
-    // URL para reset de senha (ajustar conforme necessário)
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    // Determinar o tipo de email
+    const isPasswordReset = !isAccessCode && !isConfirmation && resetToken;
+    const isAccessCodeEmail = isAccessCode && accessCode;
+    const isConfirmationEmail = isConfirmation;
+    
+    if (!isPasswordReset && !isAccessCodeEmail && !isConfirmationEmail) {
+      throw new Error('Dados insuficientes: é necessário resetToken para reset de senha, accessCode para código de acesso, ou isConfirmation para confirmação');
+    }
+    
+    // Configurar dados baseado no tipo de email
+    let subject, title, message, buttonText, buttonLink, warningText, validityText;
+    
+    if (isPasswordReset) {
+      const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+      
+      subject = '🔐 Redefinição de Senha - Buy & Hold';
+      title = '🔐 Redefinição de Senha';
+      message = 'Recebemos uma solicitação para redefinir a senha da sua conta. Se você fez esta solicitação, clique no botão abaixo para criar uma nova senha:';
+      buttonText = 'Redefinir Senha';
+      buttonLink = resetUrl;
+      warningText = 'Se você não solicitou esta redefinição, ignore este email';
+      validityText = 'Este link é válido por apenas <strong>1 hora</strong>';
+    } else if (isAccessCodeEmail) {
+      subject = '🎉 Seu Código de Acesso Premium - Buy & Hold';
+      title = '🎉 Acesso Premium Liberado!';
+      message = `Parabéns! Seu pagamento foi confirmado e seu acesso premium foi liberado. Use o código abaixo para ativar sua assinatura:`;
+      buttonText = accessCode;
+      buttonLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/activate-premium?code=${accessCode}`;
+      warningText = 'Guarde este código em local seguro';
+      validityText = 'Este código é válido por <strong>24 horas</strong>';
+    } else if (isConfirmationEmail) {
+      // Email de confirmação - acesso já liberado
+      subject = '🎉 Acesso Premium Ativado - Buy & Hold';
+      title = '🎉 Bem-vindo ao Premium!';
+      message = `Parabéns! Seu pagamento foi confirmado e seu acesso premium foi ativado com sucesso. Você já pode aproveitar todos os recursos premium da plataforma!`;
+      buttonText = 'Acessar Plataforma';
+      buttonLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+      warningText = 'Seu acesso premium está ativo e pronto para uso';
+      validityText = 'Aproveite todos os recursos premium disponíveis';
+    }
     
     const mailOptions = {
       from: emailConfig.from,
       to: email,
-      subject: '🔐 Redefinição de Senha - Buy & Hold',
+      subject: subject,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #2563eb; margin: 0;">🔐 Redefinição de Senha</h1>
+            <h1 style="color: #2563eb; margin: 0;">${title}</h1>
             <p style="color: #64748b; margin: 10px 0 0 0;">Buy & Hold Platform</p>
           </div>
           
           <div style="background-color: #f8fafc; padding: 25px; border-radius: 8px; margin: 20px 0;">
-            <h2 style="color: #1e293b; margin-top: 0;">Olá, ${name}!</h2>
-            <p style="color: #475569; line-height: 1.6;">Recebemos uma solicitação para redefinir a senha da sua conta. Se você fez esta solicitação, clique no botão abaixo para criar uma nova senha:</p>
+            <h2 style="color: #1e293b; margin-top: 0;">Olá, ${name || 'Usuário'}!</h2>
+            <p style="color: #475569; line-height: 1.6;">${message}</p>
           </div>
           
+          ${isAccessCodeEmail ? `
+          <div style="background-color: #dcfce7; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #166534; margin-top: 0;">Seu Código de Acesso:</h3>
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 2px solid #22c55e;">
+              <span style="font-size: 32px; font-weight: bold; color: #166534; letter-spacing: 4px;">${accessCode}</span>
+            </div>
+          </div>
+          ` : ''}
+          
+          ${isConfirmationEmail ? `
+          <div style="background-color: #dcfce7; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center;">
+            <h3 style="color: #166534; margin-top: 0;">🎉 Acesso Ativado!</h3>
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 2px solid #22c55e;">
+              <span style="font-size: 18px; font-weight: bold; color: #166534;">Sua assinatura premium está ativa e pronta para uso!</span>
+            </div>
+          </div>
+          ` : ''}
+          
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Redefinir Senha</a>
+            <a href="${buttonLink}" style="background-color: #2563eb; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">${buttonText}</a>
           </div>
           
           <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="color: #92400e; margin-top: 0;">⚠️ Importante:</h3>
             <ul style="color: #92400e; margin: 0; padding-left: 20px;">
-              <li>Este link é válido por apenas <strong>1 hora</strong></li>
-              <li>Se você não solicitou esta redefinição, ignore este email</li>
-              <li>Sua senha atual permanecerá inalterada até que você crie uma nova</li>
+              <li>${validityText}</li>
+              <li>${warningText}</li>
+              ${isPasswordReset ? '<li>Sua senha atual permanecerá inalterada até que você crie uma nova</li>' : ''}
+              ${isAccessCodeEmail ? '<li>Nunca compartilhe este código com outras pessoas</li>' : ''}
+              ${isConfirmationEmail ? '<li>Faça login na plataforma para acessar os recursos premium</li>' : ''}
             </ul>
           </div>
           
           <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="color: #475569; margin-top: 0;">Não consegue clicar no botão?</h3>
-            <p style="color: #64748b; margin: 0;">Copie e cole este link no seu navegador:</p>
-            <p style="word-break: break-all; color: #2563eb; margin: 10px 0 0 0;">${resetUrl}</p>
+            <h3 style="color: #475569; margin-top: 0;">${isPasswordReset ? 'Não consegue clicar no botão?' : isConfirmationEmail ? 'Acesso direto:' : 'Link direto:'}</h3>
+            <p style="color: #64748b; margin: 0;">${isPasswordReset ? 'Copie e cole este link no seu navegador:' : isConfirmationEmail ? 'Você pode acessar diretamente a plataforma:' : 'Você também pode acessar diretamente:'}</p>
+            <p style="word-break: break-all; color: #2563eb; margin: 10px 0 0 0;">${buttonLink}</p>
           </div>
           
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
@@ -262,10 +320,12 @@ class EmailService {
 
     try {
       const result = await this.transporter.sendMail(mailOptions);
-      logger.info('Email de reset de senha enviado:', result.messageId);
+      const logMessage = isPasswordReset ? 'Email de reset de senha enviado' : isConfirmationEmail ? 'Email de confirmação de ativação enviado' : 'Email com código de acesso enviado';
+      logger.info(`${logMessage}:`, result.messageId);
       return { success: true, messageId: result.messageId };
     } catch (error) {
-      logger.error('Erro ao enviar email de reset de senha:', error);
+      const errorMessage = isPasswordReset ? 'Erro ao enviar email de reset de senha' : isConfirmationEmail ? 'Erro ao enviar email de confirmação' : 'Erro ao enviar email com código de acesso';
+      logger.error(`${errorMessage}:`, error);
       throw error;
     }
   }
